@@ -503,4 +503,305 @@
       const res  = await fetch(url);
       const data = await res.json();
       if (!data.features?.length) throw new Error('not_found');
-      r
+      return parsePhoton(data.features[0]);
+    }
+
+    function parsePhoton(feature) {
+      const p = feature.properties || {};
+      const shortName =
+        p.name || p.street || p.suburb || p.neighbourhood ||
+        p.district || p.city || p.county || 'Selected location';
+      const parts = [p.name, p.street, p.suburb, p.district, p.city, p.state, p.country]
+        .filter(Boolean).join(', ');
+      return {
+        lat:         feature.geometry.coordinates[1],
+        lng:         feature.geometry.coordinates[0],
+        shortName,
+        displayName: parts,
+        type:        (p.osm_value || '') + ' ' + (p.osm_key || '')
+      };
+    }
+
+    /* ── Place icon ── */
+    function placeIcon(typeStr) {
+      const t = (typeStr || '').toLowerCase();
+      if (t.includes('university')||t.includes('school')||t.includes('college'))
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>`;
+      if (t.includes('hospital')||t.includes('clinic'))
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>`;
+      if (t.includes('hotel')||t.includes('hostel'))
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
+    }
+
+    /* ══════════════════════════════
+       MAP
+    ══════════════════════════════ */
+    function initMap() {
+      if (mapInitialized) return;
+      mapInitialized = true;
+
+      leafletMap = L.map('map', {
+        center: [CONFIG.businessLat, CONFIG.businessLng],
+        zoom: 13,
+        zoomControl: true,
+      });
+
+      // Light CartoDB tiles
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© OpenStreetMap © CARTO',
+        subdomains: 'abcd',
+        maxZoom: 19
+      }).addTo(leafletMap);
+
+      // Custom blue marker
+      const blueIcon = L.divIcon({
+        className: '',
+        html: `<div style="
+          width:28px;height:28px;
+          background:#3b82f6;
+          border:3px solid #fff;
+          border-radius:50% 50% 50% 0;
+          transform:rotate(-45deg);
+          box-shadow:0 3px 12px rgba(59,130,246,0.5);
+        "></div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+        popupAnchor: [0, -32],
+      });
+
+      // Click on map to drop pin
+      leafletMap.on('click', async function(e) {
+        const { lat, lng } = e.latlng;
+        dropPin(lat, lng, blueIcon);
+      });
+    }
+
+    async function dropPin(lat, lng, icon) {
+      // Remove old marker
+      if (currentMarker) leafletMap.removeLayer(currentMarker);
+      if (currentPopup)  leafletMap.removeLayer(currentPopup);
+
+      // Add marker
+      const markerIcon = icon || L.divIcon({
+        className: '',
+        html: `<div style="width:28px;height:28px;background:#3b82f6;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 3px 12px rgba(59,130,246,0.5);"></div>`,
+        iconSize: [28, 28], iconAnchor: [14, 28], popupAnchor: [0, -32],
+      });
+
+      currentMarker = L.marker([lat, lng], { icon: markerIcon }).addTo(leafletMap);
+      leafletMap.panTo([lat, lng]);
+
+      // Hide hint
+      document.getElementById('map-hint').style.display = 'none';
+
+      // Calculate fee immediately with coords
+      const km  = getRoadKm(lat, lng);
+      const fee = Math.max(roundDown(km * CONFIG.feePerKm, CONFIG.roundDownTo), CONFIG.minimumFee);
+
+      // Reverse geocode for name
+      let locationName = 'Selected location';
+      try {
+        const dest = await reverseGeocode(lat, lng);
+        locationName = dest.shortName;
+      } catch {}
+
+      // Custom popup above pin
+      const popupHTML = `
+        <div class="map-popup">
+          <div class="pop-location">${locationName}</div>
+          <div class="pop-row">📏 <span>${km.toFixed(1)} km</span> &nbsp;·&nbsp; 🚚 <span class="pop-val">${naira(fee)}</span></div>
+        </div>`;
+
+      currentPopup = L.popup({ closeButton: false, className: 'custom-popup', offset: [0, -10] })
+        .setLatLng([lat, lng])
+        .setContent(popupHTML)
+        .openOn(leafletMap);
+
+      // Show result below
+      showResult({ lat, lng, shortName: locationName, displayName: locationName });
+    }
+
+    /* ── Map toggle button ── */
+    const mapToggleBtn = document.getElementById('map-toggle-btn');
+    const mapPanel     = document.getElementById('map-panel');
+
+    mapToggleBtn.addEventListener('click', () => {
+      const isOpen = mapPanel.classList.contains('visible');
+      if (isOpen) {
+        mapPanel.classList.remove('visible');
+        mapToggleBtn.classList.remove('active');
+      } else {
+        mapPanel.classList.add('visible');
+        mapToggleBtn.classList.add('active');
+        initMap();
+        setTimeout(() => leafletMap.invalidateSize(), 100);
+      }
+    });
+
+    /* ══════════════════════════════
+       SUGGESTIONS
+    ══════════════════════════════ */
+    const sugBox = document.getElementById('suggestions');
+
+    async function fetchSuggestions(text) {
+      sugBox.innerHTML = `<div class="sug-loading"><div style="width:14px;height:14px;border:2px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:spin .7s linear infinite;"></div> Searching…</div>`;
+      sugBox.style.display = 'block';
+      try {
+        const res  = await fetch(searchURL(text));
+        const data = await res.json();
+        const items = data.features || [];
+
+        if (!items.length) {
+          sugBox.innerHTML = '<div class="sug-empty">No results. Try a different name.</div>';
+          return;
+        }
+
+        sugBox.innerHTML = '';
+        items.slice(0, 7).forEach(feature => {
+          const r   = parsePhoton(feature);
+          const km  = getRoadKm(r.lat, r.lng);
+          const fee = Math.max(roundDown(km * CONFIG.feePerKm, CONFIG.roundDownTo), CONFIG.minimumFee);
+
+          const el = document.createElement('div');
+          el.className = 'suggestion-item';
+          el.innerHTML = `
+            <div class="sug-icon">${placeIcon(r.type)}</div>
+            <div class="sug-text">
+              <div class="sug-main">${r.shortName}</div>
+              <div class="sug-sub">${r.displayName} &nbsp;·&nbsp; <span class="sug-fee">${naira(fee)}</span> · ${km.toFixed(1)} km</div>
+            </div>`;
+          el.addEventListener('mousedown', e => {
+            e.preventDefault();
+            document.getElementById('address').value = r.shortName;
+            document.getElementById('clear-btn').style.display = 'flex';
+            sugBox.style.display = 'none';
+            // If map is open, drop pin on selected location
+            if (mapPanel.classList.contains('visible')) {
+              dropPin(r.lat, r.lng);
+            } else {
+              showResult(r);
+            }
+          });
+          sugBox.appendChild(el);
+        });
+      } catch {
+        sugBox.innerHTML = '<div class="sug-empty">Could not load suggestions. Try again.</div>';
+      }
+    }
+
+    /* ══════════════════════════════
+       SHOW RESULT
+    ══════════════════════════════ */
+    function showResult(dest) {
+      const km  = getRoadKm(dest.lat, dest.lng);
+      const fee = Math.max(roundDown(km * CONFIG.feePerKm, CONFIG.roundDownTo), CONFIG.minimumFee);
+
+      document.getElementById('loc-name').textContent   = dest.shortName;
+      document.getElementById('dist-text').textContent  = km.toFixed(1) + ' km';
+      document.getElementById('fee-amount').textContent = naira(fee);
+
+      const msg = encodeURIComponent(
+        `📍 Delivery address: ${dest.shortName}\n` +
+        `📏 Distance: ${km.toFixed(1)} km\n` +
+        `🚚 Delivery fee: ${naira(fee)}`
+      );
+      document.getElementById('wa-link').href = `https://wa.me/${CONFIG.whatsappNumber}?text=${msg}`;
+
+      document.getElementById('error-msg').style.display = 'none';
+      const box = document.getElementById('result-box');
+      box.style.display = 'block';
+      box.style.animation = 'none';
+      box.offsetHeight;
+      box.style.animation = 'slideUp 0.4s cubic-bezier(0.16,1,0.3,1) both';
+      setTimeout(() => box.scrollIntoView({ behavior:'smooth', block:'nearest' }), 100);
+    }
+
+    /* ══════════════════════════════
+       USE MY LOCATION
+    ══════════════════════════════ */
+    const locBtn     = document.getElementById('loc-btn');
+    const locSpinner = document.getElementById('loc-spinner');
+    const locIcon    = document.getElementById('loc-icon');
+    const locText    = document.getElementById('loc-text');
+
+    locBtn.addEventListener('click', () => {
+      if (!navigator.geolocation) { showError('Geolocation not supported.'); return; }
+      locSpinner.style.display = 'block';
+      locIcon.style.display    = 'none';
+      locText.textContent      = 'Getting your location…';
+      locBtn.disabled          = true;
+
+      navigator.geolocation.getCurrentPosition(
+        async pos => {
+          try {
+            const { latitude: lat, longitude: lng } = pos.coords;
+            const dest = await reverseGeocode(lat, lng);
+            document.getElementById('address').value = dest.shortName;
+            document.getElementById('clear-btn').style.display = 'flex';
+            sugBox.style.display = 'none';
+            // If map is open, drop pin; else just show result
+            if (mapPanel.classList.contains('visible')) {
+              dropPin(lat, lng);
+            } else {
+              showResult(dest);
+            }
+          } catch {
+            showError('Could not find your address. Try typing it.');
+          } finally { resetLocBtn(); }
+        },
+        err => {
+          const msgs = {
+            1: 'Location access denied. Allow location in browser settings.',
+            2: 'Could not detect position. Try typing your address.',
+            3: 'Location timed out. Try again.',
+          };
+          showError(msgs[err.code] || 'Location error. Try typing.');
+          resetLocBtn();
+        },
+        { timeout: 25000, maximumAge: 60000, enableHighAccuracy: false }
+      );
+    });
+
+    function resetLocBtn() {
+      locSpinner.style.display = 'none';
+      locIcon.style.display    = 'block';
+      locText.textContent      = 'Use my exact location';
+      locBtn.disabled          = false;
+    }
+
+    /* ══════════════════════════════
+       INPUT WIRING
+    ══════════════════════════════ */
+    const inp      = document.getElementById('address');
+    const clearBtn = document.getElementById('clear-btn');
+
+    inp.addEventListener('input', () => {
+      const v = inp.value.trim();
+      clearBtn.style.display = v ? 'flex' : 'none';
+      clearTimeout(debounceTimer);
+      document.getElementById('result-box').style.display = 'none';
+      if (v.length >= 2) debounceTimer = setTimeout(() => fetchSuggestions(v), 380);
+      else sugBox.style.display = 'none';
+    });
+
+    inp.addEventListener('blur',  () => setTimeout(() => { sugBox.style.display = 'none'; }, 160));
+    inp.addEventListener('focus', () => { if (inp.value.trim().length >= 2) sugBox.style.display = 'block'; });
+    inp.addEventListener('keydown', e => { if (e.key === 'Escape') sugBox.style.display = 'none'; });
+
+    clearBtn.addEventListener('click', () => {
+      inp.value = '';
+      clearBtn.style.display = 'none';
+      sugBox.style.display = 'none';
+      document.getElementById('result-box').style.display = 'none';
+      document.getElementById('error-msg').style.display  = 'none';
+      inp.focus();
+    });
+
+    function showError(msg) {
+      const e = document.getElementById('error-msg');
+      e.textContent = msg; e.style.display = 'block';
+    }
+  </script>
+</body>
+</html>
