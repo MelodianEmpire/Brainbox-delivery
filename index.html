@@ -86,7 +86,8 @@
       border-radius: 20px;
       padding: 28px 24px;
       margin: 28px 24px 0;
-      position: relative; z-index: 1;
+      position: relative; z-index: 100;
+      overflow: visible;
     }
     .card-label {
       font-size: 11px; font-weight: 500;
@@ -99,11 +100,14 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      position: relative;
+      z-index: 10000;
     }
 
     .input-wrap {
       position: relative;
       flex: 1;
+      z-index: 10000;
     }
     .input-wrap > svg.pin-icon {
       position: absolute; left: 14px; top: 50%;
@@ -167,10 +171,21 @@
       background: #ffffff;
       border: 1.5px solid var(--border);
       border-radius: 14px;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.12);
-      overflow: hidden; z-index: 9999;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.18);
+      max-height: 320px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      z-index: 99999;
+      isolation: isolate;
       animation: fadeDown 0.15s ease both;
     }
+    /* Scrollbar styling for desktop */
+    #suggestions::-webkit-scrollbar { width: 6px; }
+    #suggestions::-webkit-scrollbar-track { background: transparent; }
+    #suggestions::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+    #suggestions::-webkit-scrollbar-thumb:hover { background: var(--muted); }
     @keyframes fadeDown {
       from { opacity:0; transform:translateY(-6px); }
       to   { opacity:1; transform:translateY(0); }
@@ -489,10 +504,176 @@
     const naira     = n => '₦' + n.toLocaleString('en-NG');
     const getRoadKm = (lat,lng) => haversine(CONFIG.businessLat, CONFIG.businessLng, lat, lng) * CONFIG.roadFactor;
 
-    /* ── Search (Photon by Komoot) ── */
-    function searchURL(text, limit = 7) {
+    /* ── Smart search helpers ── */
+
+    // Common typo corrections for Nigerian locations
+    const TYPO_MAP = {
+      'pork':'park', 'prk':'park', 'pak':'park', 'parrk':'park', 'oark':'park',
+      'schol':'school', 'scholl':'school', 'scool':'school', 'skool':'school', 'shcool':'school',
+      'univercity':'university', 'univeristy':'university', 'univesity':'university', 'unversity':'university',
+      'hostel':'hostel', 'hoste':'hostel', 'hotsel':'hostel',
+      'iloirn':'ilorin', 'illorin':'ilorin', 'iloirn':'ilorin',
+      'uniloirn':'unilorin', 'unilorn':'unilorin',
+      'centere':'center', 'centr':'center', 'sentral':'central',
+      'rode':'road', 'raod':'road', 'stret':'street', 'sreet':'street',
+      'markrt':'market', 'markt':'market',
+    };
+
+    // Words to strip from query (noise words)
+    const STOP_WORDS = new Set(['in','at','the','a','an','of','and','near','by','close','to','from','nigeria','ng']);
+
+    function normalizeQuery(raw) {
+      let q = raw.toLowerCase().trim();
+      // Fix typos word by word
+      q = q.split(/\s+/).map(w => TYPO_MAP[w] || w).join(' ');
+      return q;
+    }
+
+    function buildQueries(raw) {
+      const norm = normalizeQuery(raw);
+      const tokens = norm.split(/\s+/).filter(w => w.length > 1);
+      const meaningful = tokens.filter(w => !STOP_WORDS.has(w));
+      const queries = new Set();
+
+      // 1. Normalized original
+      queries.add(norm);
+
+      // 2. Meaningful tokens only
+      queries.add(meaningful.join(' '));
+
+      // 3. All permutations of meaningful words (covers any word order)
+      function permute(arr) {
+        if (arr.length <= 1) return [arr];
+        const result = [];
+        for (let i = 0; i < arr.length; i++) {
+          const rest = [...arr.slice(0,i), ...arr.slice(i+1)];
+          for (const p of permute(rest)) result.push([arr[i], ...p]);
+        }
+        return result;
+      }
+      if (meaningful.length >= 2 && meaningful.length <= 4) {
+        permute(meaningful).forEach(p => queries.add(p.join(' ')));
+      }
+
+      // 4. Broadest single-word fallback
+      const longest = [...meaningful].sort((a,b) => b.length - a.length)[0];
+      if (longest) queries.add(longest);
+
+      return [...queries].filter(Boolean);
+    }
+
+    function searchURL(text, limit = 30) {
       const q = encodeURIComponent(text);
       return `https://photon.komoot.io/api/?q=${q}&limit=${limit}&lang=en&lat=8.4799&lon=4.5418&bbox=2.6,4.2,14.7,13.9`;
+    }
+
+    async function fetchAllResults(queries) {
+      const seen   = new Set();
+      const merged = [];
+
+      const allFetches = queries.map(q =>
+        fetch(searchURL(q)).then(r => r.json()).catch(() => ({features:[]}))
+      );
+      const results = await Promise.all(allFetches);
+      for (const data of results) {
+        for (const f of (data.features || [])) {
+          const id = f.properties?.osm_id || f.geometry.coordinates.join(',');
+          if (!seen.has(id)) { seen.add(id); merged.push(f); }
+        }
+      }
+      if (merged.length) return merged;
+
+      // Hierarchical fallback
+      for (const context of LOCATION_HIERARCHY.slice(1)) {
+        const broadQuery = queries[0] + ', ' + context;
+        try {
+          const res  = await fetch(searchURL(broadQuery));
+          const data = await res.json();
+          for (const f of (data.features || [])) {
+            const id = f.properties?.osm_id || f.geometry.coordinates.join(',');
+            if (!seen.has(id)) { seen.add(id); merged.push(f); }
+          }
+          if (merged.length >= 3) break;
+        } catch {}
+      }
+      return merged;
+    }
+
+    // Similarity score
+    function similarity(str, query) {
+      const a = str.toLowerCase(), b = query.toLowerCase();
+      if (a === b) return 1;
+      if (a.includes(b) || b.includes(a)) return 0.9;
+      const aTok = new Set(a.split(/\s+/));
+      const bTok = b.split(/\s+/);
+      const matches = bTok.filter(t => [...aTok].some(at => at.includes(t) || t.includes(at)));
+      return matches.length / Math.max(bTok.length, 1);
+    }
+
+    /* ══════════════════════════════
+       SUGGESTIONS
+    ══════════════════════════════ */
+    const sugBox = document.getElementById('suggestions');
+
+    async function fetchSuggestions(text) {
+      sugBox.innerHTML = `<div class="sug-loading"><div style="width:14px;height:14px;border:2px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:spin .7s linear infinite;"></div> Searching…</div>`;
+      sugBox.style.display = 'block';
+      try {
+        const queries = buildQueries(text);
+        const items   = await fetchAllResults(queries);
+
+        if (!items.length) {
+          sugBox.innerHTML = '<div class="sug-empty">No results found. Try a shorter or different name.</div>';
+          return;
+        }
+
+        // Re-rank by similarity
+        const norm = normalizeQuery(text);
+        items.sort((a, b) => {
+          const aName = (a.properties?.name||'') + ' ' + (a.properties?.suburb||'') + ' ' + (a.properties?.city||'');
+          const bName = (b.properties?.name||'') + ' ' + (b.properties?.suburb||'') + ' ' + (b.properties?.city||'');
+          return similarity(bName, norm) - similarity(aName, norm);
+        });
+
+        sugBox.innerHTML = '';
+        items.forEach(feature => {
+          const r   = parsePhoton(feature);
+          const km  = getRoadKm(r.lat, r.lng);
+          const fee = Math.max(roundDown(km * CONFIG.feePerKm, CONFIG.roundDownTo), CONFIG.minimumFee);
+
+          const el = document.createElement('div');
+          el.className = 'suggestion-item';
+          el.innerHTML = `
+            <div class="sug-icon">${placeIcon(r.type)}</div>
+            <div class="sug-text">
+              <div class="sug-main">${r.shortName}</div>
+              <div class="sug-sub">
+                <span class="sug-addr">${r.displayName}</span>
+                <span class="sug-price">·&nbsp;<span class="sug-fee">${naira(fee)}</span>&nbsp;·&nbsp;${km.toFixed(1)}&nbsp;km</span>
+              </div>
+            </div>`;
+          el.addEventListener('mousedown', e => {
+            e.preventDefault();
+            document.getElementById('address').value = r.shortName;
+            document.getElementById('clear-btn').style.display = 'flex';
+            sugBox.style.display = 'none';
+            if (mapPanel.classList.contains('visible')) {
+              dropPin(r.lat, r.lng);
+            } else {
+              showResult(r);
+            }
+          });
+          sugBox.appendChild(el);
+        });
+
+        // End of suggestions
+        const endEl = document.createElement('div');
+        endEl.style.cssText = 'padding:10px 16px;text-align:center;font-size:11px;color:#94a3b8;font-family:DM Sans,sans-serif;border-top:1px solid #e2e8f0;';
+        endEl.textContent = '— End of suggestions —';
+        sugBox.appendChild(endEl);
+      } catch {
+        sugBox.innerHTML = '<div class="sug-empty">Could not load suggestions. Try again.</div>';
+      }
     }
 
     /* ── Reverse geocode (Photon) ── */
@@ -636,59 +817,6 @@
       }
     });
 
-    /* ══════════════════════════════
-       SUGGESTIONS
-    ══════════════════════════════ */
-    const sugBox = document.getElementById('suggestions');
-
-    async function fetchSuggestions(text) {
-      sugBox.innerHTML = `<div class="sug-loading"><div style="width:14px;height:14px;border:2px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:spin .7s linear infinite;"></div> Searching…</div>`;
-      sugBox.style.display = 'block';
-      try {
-        const res  = await fetch(searchURL(text));
-        const data = await res.json();
-        const items = data.features || [];
-
-        if (!items.length) {
-          sugBox.innerHTML = '<div class="sug-empty">No results. Try a different name.</div>';
-          return;
-        }
-
-        sugBox.innerHTML = '';
-        items.slice(0, 7).forEach(feature => {
-          const r   = parsePhoton(feature);
-          const km  = getRoadKm(r.lat, r.lng);
-          const fee = Math.max(roundDown(km * CONFIG.feePerKm, CONFIG.roundDownTo), CONFIG.minimumFee);
-
-          const el = document.createElement('div');
-          el.className = 'suggestion-item';
-          el.innerHTML = `
-            <div class="sug-icon">${placeIcon(r.type)}</div>
-            <div class="sug-text">
-              <div class="sug-main">${r.shortName}</div>
-              <div class="sug-sub">
-                <span class="sug-addr">${r.displayName}</span>
-                <span class="sug-price">·&nbsp;<span class="sug-fee">${naira(fee)}</span>&nbsp;·&nbsp;${km.toFixed(1)}&nbsp;km</span>
-              </div>
-            </div>`;
-          el.addEventListener('mousedown', e => {
-            e.preventDefault();
-            document.getElementById('address').value = r.shortName;
-            document.getElementById('clear-btn').style.display = 'flex';
-            sugBox.style.display = 'none';
-            // If map is open, drop pin on selected location
-            if (mapPanel.classList.contains('visible')) {
-              dropPin(r.lat, r.lng);
-            } else {
-              showResult(r);
-            }
-          });
-          sugBox.appendChild(el);
-        });
-      } catch {
-        sugBox.innerHTML = '<div class="sug-empty">Could not load suggestions. Try again.</div>';
-      }
-    }
 
     /* ══════════════════════════════
        SHOW RESULT
@@ -843,7 +971,7 @@
 
   
   <!-- PICKUP / MEETUP BUTTON -->
-  <div style="width:100%;max-width:480px;padding:0 24px;margin-top:12px;position:relative;z-index:1;">
+    <div style="width:100%;max-width:480px;padding:0 24px;margin-top:12px;position:relative;z-index:1;">
       <span style="font-size:12px;font-weight:600;color:#94a3b8;letter-spacing:0.06em;text-transform:uppercase;"></span>
       <div style="flex:1;height:1px;background:#e2e8f0;"></div>
     </div>
