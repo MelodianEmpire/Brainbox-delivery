@@ -683,6 +683,98 @@
       opacity: 0; pointer-events: none; transition: opacity 0.2s; white-space: nowrap;
     }
     #adm-toast.show { opacity: 1; }
+
+    /* ══ SCHEDULE POPUP MODAL ══ */
+    #sched-overlay {
+      display: none; position: fixed; inset: 0; z-index: 9990;
+      background: rgba(15,23,42,0.55); backdrop-filter: blur(4px);
+      align-items: flex-end; justify-content: center;
+      padding: 0 0 env(safe-area-inset-bottom,0);
+    }
+    #sched-overlay.open { display: flex; animation: fadeIn .2s ease; }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    #sched-modal {
+      width: 100%; max-width: 480px;
+      background: #fff; border-radius: 24px 24px 0 0;
+      padding: 0 0 28px;
+      box-shadow: 0 -24px 64px rgba(0,0,0,0.18);
+      animation: slideUp .28s cubic-bezier(0.16,1,0.3,1);
+      max-height: 92vh; overflow-y: auto;
+    }
+    .sched-drag { width:40px;height:4px;border-radius:99px;background:#e2e8f0;margin:12px auto 0; }
+    .sched-modal-head {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 18px 20px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sched-modal-head svg { color: var(--accent); flex-shrink:0; margin-top:2px; }
+    .sched-modal-title { font-family:'Syne',sans-serif; font-size:16px; font-weight:800; color:var(--text); }
+    .sched-modal-sub { font-size:12px; color:var(--muted); margin-top:3px; }
+    .sched-modal-body { padding: 16px 20px 0; }
+    .sched-section-lbl { font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px; }
+    .sched-chips { display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px; }
+    .sched-chip {
+      padding:8px 14px;border-radius:10px;font-family:'DM Sans',sans-serif;
+      font-size:13px;font-weight:500;border:1.5px solid var(--border);
+      background:var(--bg);color:var(--muted);cursor:pointer;transition:all .15s;
+      white-space:nowrap;
+    }
+    .sched-chip:hover { border-color:var(--accent);color:var(--accent); }
+    .sched-chip.on { background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700; }
+    .sched-chip.now-chip.on { background:#dc2626;border-color:#dc2626; }
+    .sched-chip.now-chip { border-color:#fca5a5;color:#dc2626; }
+    .sched-chip.now-chip:hover { background:#fef2f2;border-color:#dc2626; }
+    .sched-time-grid { display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px; }
+    .sched-time-tile {
+      padding:10px 8px;border-radius:12px;font-family:'DM Sans',sans-serif;
+      font-size:12px;font-weight:500;border:1.5px solid var(--border);
+      background:var(--bg);color:var(--muted);cursor:pointer;transition:all .15s;text-align:center;
+    }
+    .sched-time-tile strong { display:block;font-size:13px;margin-bottom:2px; }
+    .sched-time-tile:hover { border-color:var(--accent);color:var(--accent); }
+    .sched-time-tile.on { background:rgba(59,130,246,0.08);border-color:var(--accent);color:var(--accent);font-weight:700; }
+    .sched-time-tile.now-tile.on { background:rgba(220,38,38,0.08);border-color:#dc2626;color:#dc2626; }
+    .sched-time-tile.now-tile { grid-column:span 2; }
+    #sched-custom-date-wrap,#sched-custom-time-wrap { display:none;margin-bottom:12px; }
+    .sched-confirm {
+      width:100%;background:var(--accent);color:#fff;
+      font-family:'Syne',sans-serif;font-size:15px;font-weight:700;
+      padding:15px;border:none;border-radius:14px;cursor:pointer;
+      transition:filter .2s,transform .1s;margin-top:8px;
+      display:flex;align-items:center;justify-content:center;gap:10px;
+    }
+    .sched-confirm:hover { filter:brightness(1.08); }
+    .sched-confirm:active { transform:scale(.98); }
+    .sched-cancel {
+      width:100%;background:none;border:none;padding:12px;
+      font-family:'DM Sans',sans-serif;font-size:13px;color:var(--muted);
+      cursor:pointer;margin-top:6px;
+    }
+    .sched-divider { height:1px;background:var(--border);margin:4px 0 14px; }
+
+    /* ══ CUSTOMER TRACKING MAP ══ */
+    #track-section {
+      display: none;
+      width: 100%; max-width: 480px;
+      margin: 16px 24px 0; padding: 0 24px;
+      position: relative; z-index: 1;
+      animation: slideUp .4s cubic-bezier(.16,1,.3,1) both;
+    }
+    .track-header {
+      display: flex; align-items: center; gap: 9px;
+      padding: 10px 14px 10px;
+      background: rgba(16,185,129,0.07);
+      border: 1.5px solid rgba(16,185,129,0.25);
+      border-radius: 12px 12px 0 0;
+      font-size: 13px; font-weight: 600; color: #065f46;
+    }
+    .track-dot { width:8px;height:8px;border-radius:50%;background:#10b981;animation:pulse 1.5s ease-in-out infinite;flex-shrink:0; }
+    #cust-map {
+      height: 220px; border-radius: 0 0 12px 12px;
+      border: 1.5px solid rgba(16,185,129,0.25); border-top: none;
+      overflow: hidden;
+    }
+    #cust-map .leaflet-tile { filter: brightness(1.04) saturate(0.9); }
   </style>
 </head>
 <body>
@@ -754,12 +846,12 @@
           <span>Delivery fee: <span class="val" id="fee-amount">—</span></span>
         </div>
       </div>
-      <a class="btn-whatsapp" id="wa-link" href="#" target="_blank" rel="noopener">
+      <button class="btn-whatsapp" id="wa-link" onclick="openSchedPopup('delivery')">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
         </svg>
         Continue to WhatsApp
-      </a>
+      </button>
     </div>
   </div>
 
@@ -782,10 +874,8 @@
 
   <br>
   <div style="text-align:center;">
-    <a id="pickup-btn"
-      href="https://wa.me/2347012850166?text=I%27d%20prefer%20a%20FREE%20Delivery%20(Pickup%2FMeetup)"
-      target="_blank" rel="noopener"
-      style="display:inline-flex;align-items:center;justify-content:center;gap:10px;width:fit-content;padding:12px 24px;background:#3b82f6;text-align:center;color:#fff;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;border-radius:12px;text-decoration:none;transition:filter 0.2s,transform 0.1s;"
+    <button id="pickup-btn" onclick="openSchedPopup('pickup')"
+      style="display:inline-flex;align-items:center;justify-content:center;gap:10px;width:fit-content;padding:12px 24px;background:#3b82f6;text-align:center;color:#fff;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;border-radius:12px;border:none;cursor:pointer;transition:filter 0.2s,transform 0.1s;"
       onmouseover="this.style.filter='brightness(1.08)'"
       onmouseout="this.style.filter=''"
       onmousedown="this.style.transform='scale(0.98)'"
@@ -795,12 +885,79 @@
         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
       </svg>
       I prefer a FREE Delivery (Pickup / Meetup)
-    </a>
+    </button>
   </div>
   <div style="width:100%;max-width:480px;padding:0 24px;margin-top:12px;position:relative;z-index:1;">
     <div style="flex:1;height:1px;background:#e2e8f0;"></div>
   </div>
 
+
+
+  <!-- ════════ SCHEDULE POPUP MODAL ════════ -->
+  <div id="sched-overlay" onclick="e => { if(e.target===this)closeSchedPopup(); }">
+    <div id="sched-modal">
+      <div class="sched-drag"></div>
+      <div class="sched-modal-head">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <div>
+          <div class="sched-modal-title">When would you like your delivery?</div>
+          <div class="sched-modal-sub">Helps us plan your delivery to your preferred time — we'll prioritise accordingly 🕐</div>
+        </div>
+      </div>
+      <div class="sched-modal-body">
+        <!-- Date -->
+        <div class="sched-section-lbl">Preferred date</div>
+        <div class="sched-chips">
+          <button class="sched-chip on" data-sday="today" onclick="spSelectDay(this,'today')">Today</button>
+          <button class="sched-chip" data-sday="tomorrow" onclick="spSelectDay(this,'tomorrow')">Tomorrow</button>
+          <button class="sched-chip" data-sday="custom" onclick="spSelectDay(this,'custom')">📅 Pick a date</button>
+        </div>
+        <div id="sched-custom-date-wrap">
+          <input type="date" id="sched-date-inp" style="width:100%;background:#f1f5f9;border:1.5px solid #e2e8f0;color:#0f172a;font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;border-radius:10px;outline:none;">
+        </div>
+        <div class="sched-divider"></div>
+
+        <!-- Time — NOW is top prominent chip -->
+        <div class="sched-section-lbl">Preferred time</div>
+        <div class="sched-time-grid">
+          <button class="sched-time-tile now-tile" data-sslot="now" onclick="spSelectTime(this,'now')">
+            <strong>⚡ Now — ASAP</strong>I need it urgently
+          </button>
+          <button class="sched-time-tile on" data-sslot="morning" onclick="spSelectTime(this,'morning')">
+            <strong>🌅 Morning</strong>8 AM – 12 PM
+          </button>
+          <button class="sched-time-tile" data-sslot="afternoon" onclick="spSelectTime(this,'afternoon')">
+            <strong>☀️ Afternoon</strong>12 PM – 4 PM
+          </button>
+          <button class="sched-time-tile" data-sslot="evening" onclick="spSelectTime(this,'evening')">
+            <strong>🌇 Evening</strong>4 PM – 7 PM
+          </button>
+          <button class="sched-time-tile" data-sslot="custom" onclick="spSelectTime(this,'custom')">
+            <strong>🕐 Specific time</strong>I'll choose
+          </button>
+        </div>
+        <div id="sched-custom-time-wrap">
+          <input type="time" id="sched-time-inp" style="width:100%;background:#f1f5f9;border:1.5px solid #e2e8f0;color:#0f172a;font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;border-radius:10px;outline:none;">
+        </div>
+
+        <!-- Confirm -->
+        <button class="sched-confirm" id="sched-confirm-btn" onclick="schedConfirm()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+          <span id="sched-confirm-label">Confirm & Continue to WhatsApp</span>
+        </button>
+        <button class="sched-cancel" onclick="closeSchedPopup()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ CUSTOMER TRACKING MAP ════════ -->
+  <div id="track-section">
+    <div class="track-header">
+      <div class="track-dot"></div>
+      🛵 Your rider is on the way! Live location below
+    </div>
+    <div id="cust-map"></div>
+  </div>
 
   <!-- ════════ ADMIN OVERLAY ════════ -->
   <div id="adm">
@@ -929,11 +1086,15 @@
       roadFactor:      1.4,
     };
 
+    /* ── Shared live delivery state (read by customer tracking map) ── */
+    window.bbLive = { active:false, riderLat:null, riderLng:null, destLat:null, destLng:null, routePoints:null };
+    let lastDest = null;
     let debounceTimer = null;
     let mapInitialized = false;
     let leafletMap = null;
     let currentMarker = null;
     let currentPopup = null;
+    let userLat = 8.4799, userLng = 4.5418; // default Ilorin, overridden by GPS
 
     function haversine(lat1, lon1, lat2, lon2) {
       const R = 6371, r = Math.PI / 180;
@@ -991,8 +1152,17 @@
 
     function searchURL(text, limit = 30) {
       const q = encodeURIComponent(text);
-      return `https://photon.komoot.io/api/?q=${q}&limit=${limit}&lang=en&lat=8.4799&lon=4.5418&bbox=2.6,4.2,14.7,13.9`;
+      return `https://photon.komoot.io/api/?q=${q}&limit=${limit}&lang=en&lat=${userLat}&lon=${userLng}&bbox=2.6,4.2,14.7,13.9`;
     }
+    // Silently get user GPS to bias search results
+    (function getGPSBias() {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        p => { userLat = p.coords.latitude; userLng = p.coords.longitude; },
+        () => {}, // silent fail, keep Ilorin default
+        { timeout: 8000, maximumAge: 300000, enableHighAccuracy: false }
+      );
+    })();
 
     async function fetchAllResults(queries) {
       const seen = new Set(), merged = [];
@@ -1227,6 +1397,172 @@
       const e = document.getElementById('error-msg');
       e.textContent = msg; e.style.display = 'block';
     }
+
+    /* ══════════════════════════════
+       SCHEDULE POPUP
+    ══════════════════════════════ */
+    let spDay = 'today', spSlot = 'morning', spMode = 'delivery';
+
+    function openSchedPopup(mode) {
+      spMode = mode || 'delivery';
+      // Update confirm button label
+      const lbl = document.getElementById('sched-confirm-label');
+      if (lbl) lbl.textContent = spMode === 'pickup'
+        ? 'Confirm & Continue to WhatsApp'
+        : 'Confirm & Send to WhatsApp';
+      document.getElementById('sched-overlay').classList.add('open');
+      document.body.style.overflow = 'hidden';
+      // Set date input min
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      document.getElementById('sched-date-inp').min = dateStr;
+    }
+
+    function closeSchedPopup() {
+      document.getElementById('sched-overlay').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    // Close popup when clicking backdrop
+    document.getElementById('sched-overlay').addEventListener('click', function(e) {
+      if (e.target === this) closeSchedPopup();
+    });
+
+    function spSelectDay(btn, day) {
+      document.querySelectorAll('[data-sday]').forEach(c => c.classList.remove('on'));
+      btn.classList.add('on');
+      spDay = day;
+      document.getElementById('sched-custom-date-wrap').style.display = day === 'custom' ? 'block' : 'none';
+    }
+
+    function spSelectTime(btn, slot) {
+      document.querySelectorAll('[data-sslot]').forEach(c => c.classList.remove('on'));
+      btn.classList.add('on');
+      spSlot = slot;
+      document.getElementById('sched-custom-time-wrap').style.display = slot === 'custom' ? 'block' : 'none';
+    }
+
+    function spGetScheduleText() {
+      // Date
+      let dateLabel;
+      if (spDay === 'today') {
+        const d = new Date();
+        dateLabel = `Today (${d.toLocaleDateString('en-NG', {weekday:'long',day:'numeric',month:'short'})})`;
+      } else if (spDay === 'tomorrow') {
+        const d = new Date(); d.setDate(d.getDate()+1);
+        dateLabel = `Tomorrow (${d.toLocaleDateString('en-NG', {weekday:'long',day:'numeric',month:'short'})})`;
+      } else {
+        const v = document.getElementById('sched-date-inp').value;
+        dateLabel = v ? new Date(v+'T00:00:00').toLocaleDateString('en-NG',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) : 'Date not specified';
+      }
+      // Time
+      let timeLabel;
+      if (spSlot === 'now') {
+        timeLabel = '⚡ ASAP — Urgent request';
+      } else if (spSlot === 'morning') {
+        timeLabel = 'Morning (8 AM – 12 PM)';
+      } else if (spSlot === 'afternoon') {
+        timeLabel = 'Afternoon (12 PM – 4 PM)';
+      } else if (spSlot === 'evening') {
+        timeLabel = 'Evening (4 PM – 7 PM)';
+      } else {
+        const v = document.getElementById('sched-time-inp').value;
+        if (v) {
+          const [hh,mm] = v.split(':').map(Number);
+          const ap = hh>=12?'PM':'AM', h12 = hh%12||12;
+          timeLabel = `${h12}:${String(mm).padStart(2,'0')} ${ap}`;
+        } else {
+          timeLabel = 'Time not specified';
+        }
+      }
+      return { dateLabel, timeLabel };
+    }
+
+    function schedConfirm() {
+      const { dateLabel, timeLabel } = spGetScheduleText();
+      const urgent = spSlot === 'now';
+      let msg;
+      if (spMode === 'delivery' && lastDest) {
+        const km  = getRoadKm(lastDest.lat, lastDest.lng);
+        const fee = Math.max(roundDown(km * CONFIG.feePerKm, CONFIG.roundDownTo), CONFIG.minimumFee);
+        msg = encodeURIComponent(
+          (urgent ? '⚡ *URGENT DELIVERY REQUEST*\n\n' : '') +
+          `📍 Delivery address: ${lastDest.shortName}\n` +
+          `📏 Distance: ${km.toFixed(1)} km\n` +
+          `🚚 Delivery fee: ${naira(fee)}\n` +
+          `📅 Preferred date: ${dateLabel}\n` +
+          `🕐 Preferred time: ${timeLabel}`
+        );
+      } else {
+        // Pickup / meetup mode
+        msg = encodeURIComponent(
+          (urgent ? '⚡ *URGENT* — ' : '') +
+          `I'd prefer a FREE Delivery (Pickup/Meetup)\n` +
+          `📅 Preferred date: ${dateLabel}\n` +
+          `🕐 Preferred time: ${timeLabel}`
+        );
+      }
+      closeSchedPopup();
+      window.open(`https://wa.me/${CONFIG.whatsappNumber}?text=${msg}`, '_blank', 'noopener');
+    }
+
+    /* ══════════════════════════════
+       CUSTOMER TRACKING MAP
+    ══════════════════════════════ */
+    let custMap = null, custMapInit = false;
+    let custRiderMk = null, custRouteLyr = null, custDestMk = null;
+
+    function custMapRefresh() {
+      const live = window.bbLive;
+      const sec = document.getElementById('track-section');
+
+      if (!live.active || !live.riderLat) {
+        if (sec) sec.style.display = 'none';
+        return;
+      }
+      if (sec) sec.style.display = 'block';
+
+      if (!custMapInit) {
+        custMapInit = true;
+        custMap = L.map('cust-map', {
+          center: [live.riderLat, live.riderLng],
+          zoom: 14, zoomControl: false,
+          attributionControl: false,
+        });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(custMap);
+        // Store marker
+        const storeIco = L.divIcon({className:'',html:`<div style="width:14px;height:14px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(59,130,246,.5);"></div>`,iconSize:[14,14],iconAnchor:[7,7]});
+        L.marker([CONFIG.businessLat, CONFIG.businessLng], {icon:storeIco}).addTo(custMap);
+      }
+
+      // Rider marker (bike)
+      const rIco = L.divIcon({className:'',html:`<div style="font-size:22px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));">🛵</div>`,iconSize:[28,28],iconAnchor:[14,14]});
+      if (custRiderMk) custMap.removeLayer(custRiderMk);
+      custRiderMk = L.marker([live.riderLat, live.riderLng], {icon:rIco,zIndexOffset:1000}).addTo(custMap);
+
+      // Destination marker
+      if (live.destLat && live.destLng) {
+        const dIco = L.divIcon({className:'',html:`<div style="width:18px;height:18px;background:#10b981;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(16,185,129,.5);"></div>`,iconSize:[18,18],iconAnchor:[9,18]});
+        if (custDestMk) custMap.removeLayer(custDestMk);
+        custDestMk = L.marker([live.destLat, live.destLng], {icon:dIco}).addTo(custMap);
+      }
+
+      // Route line
+      if (live.routePoints && live.routePoints.length) {
+        if (custRouteLyr) custMap.removeLayer(custRouteLyr);
+        custRouteLyr = L.geoJSON(live.routePoints, {style:{color:'#3b82f6',weight:4,opacity:.7,dashArray:'8,4'}}).addTo(custMap);
+      } else if (live.destLat) {
+        if (custRouteLyr) custMap.removeLayer(custRouteLyr);
+        custRouteLyr = L.polyline([[CONFIG.businessLat,CONFIG.businessLng],[live.destLat,live.destLng]],{color:'#3b82f6',weight:3,opacity:.6,dashArray:'8,4'}).addTo(custMap);
+      }
+
+      // Pan to rider
+      custMap.panTo([live.riderLat, live.riderLng]);
+      setTimeout(() => custMap && custMap.invalidateSize(), 100);
+    }
+
+    // Poll every 4 seconds
+    setInterval(custMapRefresh, 4000);
   </script>
 
 
@@ -1310,23 +1646,39 @@
       if (admDest)  admMap.removeLayer(admDest);
       const dIco = L.divIcon({ className:'', html:`<div style="width:26px;height:26px;background:#10b981;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 3px 12px rgba(16,185,129,0.5);"></div>`, iconSize:[26,26], iconAnchor:[13,26] });
       admDest = L.marker([la,lo],{icon:dIco}).addTo(admMap);
+      // Write dest to shared live state
+      window.bbLive.destLat = la; window.bbLive.destLng = lo;
       try {
         const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${CFG.lng},${CFG.lat};${lo},${la}?overview=full&geometries=geojson`);
         const d = await r.json();
         if (d.routes?.[0]) {
           admRoute = L.geoJSON(d.routes[0].geometry,{style:{color:'#3b82f6',weight:4,opacity:0.75,dashArray:'8,4'}}).addTo(admMap);
           admMap.fitBounds(admRoute.getBounds(),{padding:[30,30]});
+          window.bbLive.routePoints = d.routes[0].geometry; // share with customer map
         } else throw new Error();
       } catch {
         admRoute = L.polyline([[CFG.lat,CFG.lng],[la,lo]],{color:'#3b82f6',weight:3,opacity:0.6,dashArray:'8,4'}).addTo(admMap);
         admMap.fitBounds([[CFG.lat,CFG.lng],[la,lo]],{padding:[40,40]});
+        window.bbLive.routePoints = null;
       }
+      custMapRefresh(); // update customer tracking map immediately
+    }
+
+    function admMapDirections(la, lo) {
+      admDrawRoute(la, lo);
+      admSwitchTab('search'); // switch bottom panel away so map is visible
+      setTimeout(() => admMap && admMap.invalidateSize(), 150);
     }
 
     function admSetRider(la, lo) {
       if (admRider) admMap.removeLayer(admRider);
-      const ico = L.divIcon({ className:'', html:`<div style="width:36px;height:36px;background:#ef4444;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(239,68,68,0.2),0 4px 16px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:16px;">🛵</div>`, iconSize:[36,36], iconAnchor:[18,18] });
+      const ico = L.divIcon({ className:'', html:`<div style="width:36px;height:36px;background:#ef4444;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(239,68,68,0.2),0 4px 16px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:20px;">🛵</div>`, iconSize:[36,36], iconAnchor:[18,18] });
       admRider = L.marker([la,lo],{icon:ico,zIndexOffset:1000}).addTo(admMap);
+      // Share live position so customer tracking map updates
+      window.bbLive.active = true;
+      window.bbLive.riderLat = la;
+      window.bbLive.riderLng = lo;
+      custMapRefresh();
     }
 
     /* ── Broadcast ── */
@@ -1359,10 +1711,13 @@
       document.getElementById('broadcast-bar').classList.remove('visible');
       if (admRider) { admMap.removeLayer(admRider); admRider=null; }
       riderLat=null; riderLng=null;
+      window.bbLive.active = false;
+      window.bbLive.riderLat = null; window.bbLive.riderLng = null;
+      custMapRefresh();
     }
     function admUpdateBcLink(la,lo) {
       const mUrl=`https://www.google.com/maps?q=${la},${lo}`;
-      const msg=encodeURIComponent(`🛵 *Brainbox Store – Rider Location Update*\n\nYour delivery rider is here:\n📍 ${mUrl}\n\nOpen in Google Maps for live tracking.`);
+      const msg=encodeURIComponent(`🛵 *Brainbox Store – Rider Location Update*\n\nYour delivery rider is currently at:\n📍 ${mUrl}\n\nTap to track on Google Maps.`);
       document.getElementById('bc-share-btn').href=`https://wa.me/?text=${msg}`;
     }
     document.getElementById('broadcast-btn').addEventListener('click',()=>{ admBroadcasting?admStopBroadcast():admStartBroadcast(); });
@@ -1410,7 +1765,7 @@
       document.getElementById('sel-km').textContent=km.toFixed(1)+' km';
       document.getElementById('sel-fee').textContent=admNaira(fee);
       document.getElementById('sel-eta').textContent='~'+admFmtM(eta);
-      document.getElementById('sel-dir').href=`https://www.google.com/maps/dir/?api=1&origin=${CFG.lat},${CFG.lng}&destination=${r.lat},${r.lng}&travelmode=driving`;
+      document.getElementById('sel-dir').onclick = () => admMapDirections(r.lat, r.lng);
       document.getElementById('selected-card').style.display='block';
       admDrawRoute(r.lat,r.lng);
     }
@@ -1451,9 +1806,8 @@
       if(!pl.length){list.innerHTML='<div class="wp-empty">No planned waypoints yet.<br>Search a location and tap <strong>Add Waypoint</strong>.</div>';return;}
       list.innerHTML='';
       pl.forEach((wp,i)=>{
-        const gm=`https://www.google.com/maps/dir/?api=1&origin=${CFG.lat},${CFG.lng}&destination=${wp.lat},${wp.lng}&travelmode=driving`;
-        const el=document.createElement('div'); el.className='wp-card';
-        el.innerHTML=`<div class="wp-hdr"><div class="wp-num">${i+1}</div><div style="flex:1;min-width:0"><div class="wp-name">${wp.name}</div><div class="wp-meta"><span class="g">${admNaira(wp.fee)}</span> · ${wp.km.toFixed(1)} km · <span class="a">~${admFmtM(wp.eta)}</span></div></div></div><div class="wp-acts"><a class="wb wb-dir" href="${gm}" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>Directions</a><button class="wb wb-start" data-id="${wp.id}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>Start</button><button class="wb wb-del" data-id="${wp.id}" style="max-width:38px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;
+          const el=document.createElement('div'); el.className='wp-card';
+        el.innerHTML=`<div class="wp-hdr"><div class="wp-num">${i+1}</div><div style="flex:1;min-width:0"><div class="wp-name">${wp.name}</div><div class="wp-meta"><span class="g">${admNaira(wp.fee)}</span> · ${wp.km.toFixed(1)} km · <span class="a">~${admFmtM(wp.eta)}</span></div></div></div><div class="wp-acts"><button class="wb wb-dir" onclick="admMapDirections(${wp.lat},${wp.lng})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>On Map</button><button class="wb wb-start" data-id="${wp.id}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>Start</button><button class="wb wb-del" data-id="${wp.id}" style="max-width:38px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;
         el.querySelector('.wb-start').addEventListener('click',()=>admStartDelivery(wp.id));
         el.querySelector('.wb-del').addEventListener('click',()=>admRemoveWP(wp.id));
         list.appendChild(el);
@@ -1468,9 +1822,8 @@
       if(!ac.length){list.innerHTML='<div class="act-empty">No active deliveries.<br>Start one from Waypoints.</div>';return;}
       list.innerHTML='';
       ac.forEach(wp=>{
-        const gm=`https://www.google.com/maps/dir/?api=1&origin=${CFG.lat},${CFG.lng}&destination=${wp.lat},${wp.lng}&travelmode=driving`;
         const el=document.createElement('div'); el.className='act-card'; el.id=`ac-${wp.id}`;
-        el.innerHTML=`<div class="act-status"><div class="live-dot"></div><span class="act-lbl">In Transit</span></div><div class="act-name">${wp.name}</div><div class="act-meta">${wp.km.toFixed(1)} km · ${admNaira(wp.fee)} · <a href="${gm}" target="_blank" rel="noopener">Open in Maps ↗</a></div><div class="timers"><div class="tbox"><div class="tval" id="el-${wp.id}">0:00</div><div class="tlbl">Elapsed</div></div><div class="tbox"><div class="tval eta-ok" id="ar-${wp.id}">${admArr(wp.eta)}</div><div class="tlbl">Arrival</div></div><div class="tbox"><div class="tval eta-ok" id="rm-${wp.id}">${admFmtM(wp.eta)}</div><div class="tlbl">Remaining</div></div></div><div class="act-acts"><a class="act-share" id="sh-${wp.id}" href="#" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>Share ETA</a><button class="act-done" data-id="${wp.id}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Delivered ✓</button></div>`;
+        el.innerHTML=`<div class="act-status"><div class="live-dot"></div><span class="act-lbl">In Transit</span></div><div class="act-name">${wp.name}</div><div class="act-meta">${wp.km.toFixed(1)} km · ${admNaira(wp.fee)} · <button onclick="admMapDirections(${wp.lat},${wp.lng})" style="background:none;border:none;color:var(--a-accent);font-size:12px;cursor:pointer;padding:0;font-family:DM Sans,sans-serif;">📍 Show on map</button></div><div class="timers"><div class="tbox"><div class="tval" id="el-${wp.id}">0:00</div><div class="tlbl">Elapsed</div></div><div class="tbox"><div class="tval eta-ok" id="ar-${wp.id}">${admArr(wp.eta)}</div><div class="tlbl">Arrival</div></div><div class="tbox"><div class="tval eta-ok" id="rm-${wp.id}">${admFmtM(wp.eta)}</div><div class="tlbl">Remaining</div></div></div><div class="act-acts"><a class="act-share" id="sh-${wp.id}" href="#" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>Share ETA</a><button class="act-done" data-id="${wp.id}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Delivered ✓</button></div>`;
         el.querySelector('.act-done').addEventListener('click',()=>admMarkDone(wp.id));
         admRefreshShare(wp);
         list.appendChild(el);
@@ -1479,7 +1832,7 @@
 
     function admRefreshShare(wp) {
       const el=document.getElementById(`sh-${wp.id}`); if(!el) return;
-      const locPart=riderLat?`\n📍 Rider location: https://www.google.com/maps?q=${riderLat},${riderLng}`:'';
+      const locPart=riderLat?`\n📍 Rider live location: https://www.google.com/maps?q=${riderLat},${riderLng}`:'';
       const msg=encodeURIComponent(`🛵 *Brainbox Store – Your Delivery is On the Way!*\n\n📦 Delivering to: ${wp.name}\n📏 Distance: ${wp.km.toFixed(1)} km\n⏱️ Est. arrival: ${admArr(wp.eta)}${locPart}\n\nThank you for choosing Brainbox Store! 💙`);
       el.href=`https://wa.me/${CFG.wa}?text=${msg}`;
     }
