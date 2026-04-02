@@ -4,10 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Delivery Fee · Brainbox Store</title>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet" />
-  <!-- Leaflet CSS -->
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <style>
+    /* ════════════════════════════════════════
+       PUBLIC PAGE — LIGHT THEME
+    ════════════════════════════════════════ */
     :root {
       --bg:       #ffffff;
       --card:     #f8fafc;
@@ -35,6 +37,8 @@
       position: relative;
       overflow-x: hidden;
     }
+    body.admin-open { overflow: hidden; }
+
     body::before {
       content: '';
       position: fixed;
@@ -52,6 +56,20 @@
       padding: 48px 24px 0;
       position: relative; z-index: 1;
     }
+    /* Admin Login trigger — top-right of header */
+    #admin-trigger {
+      position: absolute;
+      top: 18px; right: 24px;
+      font-size: 11px; font-weight: 500;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      text-decoration: none;
+      display: flex; align-items: center; gap: 5px;
+      transition: color 0.15s;
+      cursor: pointer; background: none; border: none; padding: 0;
+    }
+    #admin-trigger:hover { color: var(--accent); }
+
     .badge {
       display: inline-flex; align-items: center; gap: 6px;
       background: rgba(59,130,246,0.10);
@@ -181,7 +199,6 @@
       isolation: isolate;
       animation: fadeDown 0.15s ease both;
     }
-    /* Scrollbar styling for desktop */
     #suggestions::-webkit-scrollbar { width: 6px; }
     #suggestions::-webkit-scrollbar-track { background: transparent; }
     #suggestions::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
@@ -260,7 +277,6 @@
       background: #f8fafc;
     }
 
-    /* Override Leaflet tiles to light */
     .leaflet-tile { filter: brightness(1.05) saturate(0.9); }
 
     .map-hint {
@@ -280,7 +296,7 @@
       box-shadow: 0 2px 12px rgba(0,0,0,0.08);
     }
 
-    /* ── MAP POPUP (custom) ── */
+    /* ── MAP POPUP ── */
     .map-popup {
       background: #fff;
       border: 1.5px solid var(--border);
@@ -301,7 +317,6 @@
       display: flex; align-items: center; gap: 4px;
     }
     .map-popup .pop-val { color: var(--green); font-weight: 700; }
-    /* Remove default Leaflet popup styles */
     .leaflet-popup-content-wrapper {
       padding: 0 !important;
       border-radius: 12px !important;
@@ -371,11 +386,315 @@
       color: var(--muted); text-align: center;
       position: relative; z-index: 1;
     }
+
+
+    /* ════════════════════════════════════════
+       ADMIN PANEL — DARK OVERLAY
+       All rules scoped to #adm to prevent any
+       bleed into the public page styles above.
+    ════════════════════════════════════════ */
+    #adm {
+      position: fixed; inset: 0; z-index: 9998;
+      display: none; flex-direction: column;
+      font-family: 'DM Sans', sans-serif;
+      background: #07101f; color: #e2e8f0;
+      --a-bg: #07101f; --a-surface: #0f1c30; --a-card: #162236;
+      --a-border: #1e3350; --a-accent: #3b82f6; --a-green: #10b981;
+      --a-amber: #f59e0b; --a-red: #ef4444;
+      --a-text: #e2e8f0; --a-muted: #64748b; --a-dim: #94a3b8;
+    }
+
+    /* Login */
+    #adm #login-screen {
+      position: absolute; inset: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 30% 20%, rgba(59,130,246,0.12) 0%, transparent 60%),
+                  radial-gradient(ellipse at 80% 80%, rgba(16,185,129,0.06) 0%, transparent 50%),
+                  var(--a-bg);
+      padding: 24px;
+    }
+    #adm .login-card {
+      width: 100%; max-width: 380px;
+      background: var(--a-surface); border: 1px solid var(--a-border);
+      border-radius: 24px; padding: 40px 32px;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+    }
+    #adm .login-logo {
+      font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800;
+      color: var(--a-text); margin-bottom: 6px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    #adm .login-logo .dot { color: var(--a-accent); }
+    #adm .login-sub { font-size: 13px; color: var(--a-muted); margin-bottom: 32px; }
+    #adm .login-lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--a-muted); margin-bottom: 8px; }
+    #adm .login-inp {
+      width: 100%; background: var(--a-bg); border: 1.5px solid var(--a-border);
+      color: var(--a-text); font-family: 'DM Sans', sans-serif; font-size: 15px;
+      padding: 13px 16px; border-radius: 12px; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s; margin-bottom: 16px;
+    }
+    #adm .login-inp:focus { border-color: var(--a-accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    #adm .login-inp::placeholder { color: var(--a-muted); }
+    #adm .login-btn-el {
+      width: 100%; background: var(--a-accent); color: #fff;
+      font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700;
+      padding: 14px; border: none; border-radius: 12px; cursor: pointer;
+      transition: filter 0.2s, transform 0.1s; margin-top: 4px;
+    }
+    #adm .login-btn-el:hover { filter: brightness(1.1); }
+    #adm .login-btn-el:active { transform: scale(0.98); }
+    #adm .login-err {
+      margin-top: 12px; font-size: 13px; color: var(--a-red);
+      background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2);
+      padding: 10px 14px; border-radius: 10px; display: none;
+    }
+
+    /* Dashboard layout */
+    #adm #dashboard { display: none; flex-direction: column; height: 100%; }
+
+    /* Header */
+    #adm #admin-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 14px; height: 54px; flex-shrink: 0;
+      background: var(--a-surface); border-bottom: 1px solid var(--a-border); z-index: 500;
+    }
+    #adm .hdr-logo { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 800; color: var(--a-text); flex: 1; }
+    #adm .hdr-logo span { color: var(--a-accent); }
+    #adm .hdr-badge {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--a-muted); background: var(--a-card); border: 1px solid var(--a-border);
+      padding: 3px 8px; border-radius: 6px;
+    }
+    #adm #broadcast-btn {
+      display: flex; align-items: center; gap: 7px;
+      background: var(--a-card); border: 1.5px solid var(--a-border);
+      color: var(--a-dim); font-family: 'DM Sans', sans-serif;
+      font-size: 12px; font-weight: 600; padding: 7px 12px; border-radius: 10px;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    }
+    #adm #broadcast-btn.active { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.5); color: var(--a-red); }
+    #adm .bc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--a-muted); transition: background 0.2s; }
+    #adm #broadcast-btn.active .bc-dot { background: var(--a-red); animation: adm-pulse 1.4s ease-in-out infinite; }
+    @keyframes adm-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+    #adm #back-btn {
+      display: flex; align-items: center; gap: 5px;
+      background: none; border: 1.5px solid var(--a-border);
+      color: var(--a-muted); font-family: 'DM Sans', sans-serif;
+      font-size: 12px; font-weight: 600;
+      padding: 6px 10px; border-radius: 8px; cursor: pointer; transition: all 0.15s;
+    }
+    #adm #back-btn:hover { border-color: var(--a-accent); color: var(--a-accent); }
+    #adm #logout-btn {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: none; border: 1.5px solid var(--a-border);
+      color: var(--a-muted); cursor: pointer; font-size: 18px;
+      display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    #adm #logout-btn:hover { border-color: var(--a-red); color: var(--a-red); }
+
+    /* Broadcast bar */
+    #adm #broadcast-bar {
+      display: none; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 8px 14px; background: rgba(239,68,68,0.08);
+      border-bottom: 1px solid rgba(239,68,68,0.2); flex-shrink: 0;
+    }
+    #adm #broadcast-bar.visible { display: flex; }
+    #adm .bc-live-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--a-red); }
+    #adm #bc-coords { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--a-dim); flex: 1; }
+    #adm #bc-share-btn {
+      display: flex; align-items: center; gap: 6px;
+      background: #25D366; color: #fff; font-size: 11px; font-weight: 600;
+      padding: 5px 10px; border-radius: 8px;
+      text-decoration: none; border: none; cursor: pointer; white-space: nowrap;
+    }
+
+    /* Admin map — dark tile filter scoped here so it doesn't affect the public #map */
+    #admin-map { flex: 1; min-height: 0; position: relative; z-index: 1; }
+    #admin-map .leaflet-tile { filter: brightness(0.82) saturate(0.65) hue-rotate(195deg) !important; }
+    #adm .leaflet-control-zoom a { background: var(--a-surface) !important; color: var(--a-text) !important; border-color: var(--a-border) !important; }
+
+    /* Bottom panel */
+    #adm #bottom-panel {
+      flex-shrink: 0; background: var(--a-surface);
+      border-top: 1px solid var(--a-border);
+      display: flex; flex-direction: column;
+      height: 52vh; max-height: 430px; z-index: 300;
+    }
+
+    /* Tabs */
+    #adm .tab-bar { display: flex; border-bottom: 1px solid var(--a-border); flex-shrink: 0; }
+    #adm .a-tab {
+      flex: 1; padding: 11px 6px; background: none; border: none;
+      font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600;
+      color: var(--a-muted); cursor: pointer; border-bottom: 2px solid transparent;
+      transition: all 0.15s; letter-spacing: 0.02em;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+    }
+    #adm .a-tab.active { color: var(--a-accent); border-bottom-color: var(--a-accent); }
+    #adm .tcnt {
+      font-size: 10px; background: var(--a-accent); color: #fff;
+      border-radius: 10px; padding: 1px 5px; font-weight: 700; display: none;
+    }
+    #adm .tcnt.show { display: inline; }
+    #adm .tab-pane { display: none; flex: 1; overflow-y: auto; padding: 14px; }
+    #adm .tab-pane.active { display: block; }
+    #adm .tab-pane::-webkit-scrollbar { width: 4px; }
+    #adm .tab-pane::-webkit-scrollbar-thumb { background: var(--a-border); border-radius: 99px; }
+
+    /* Search tab */
+    #adm .srch-wrap { position: relative; margin-bottom: 12px; }
+    #adm .srch-ico { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--a-muted); pointer-events: none; z-index: 1; }
+    #adm #search-input {
+      width: 100%; background: var(--a-card); border: 1.5px solid var(--a-border);
+      color: var(--a-text); font-family: 'DM Sans', sans-serif; font-size: 14px;
+      padding: 12px 12px 12px 40px; border-radius: 12px; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    #adm #search-input::placeholder { color: var(--a-muted); font-size: 13px; }
+    #adm #search-input:focus { border-color: var(--a-accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+    #adm #search-suggestions {
+      display: none; background: var(--a-card); border: 1px solid var(--a-border);
+      border-radius: 12px; overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3); margin-bottom: 12px;
+    }
+    #adm .asug {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 11px 14px; cursor: pointer; border-bottom: 1px solid var(--a-border);
+      transition: background 0.1s;
+    }
+    #adm .asug:last-child { border-bottom: none; }
+    #adm .asug:hover { background: rgba(59,130,246,0.08); }
+    #adm .asug-ico { width: 30px; height: 30px; border-radius: 8px; background: rgba(59,130,246,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--a-accent); margin-top: 1px; }
+    #adm .asug-main { font-size: 13px; font-weight: 500; color: var(--a-text); }
+    #adm .asug-sub { font-size: 11px; color: var(--a-muted); margin-top: 2px; }
+    #adm .asug-fee { color: var(--a-green); font-weight: 600; }
+    #adm .asug-loading, #adm .asug-empty { padding: 16px; text-align: center; font-size: 13px; color: var(--a-muted); }
+
+    /* Selected card */
+    #adm #selected-card {
+      display: none; background: var(--a-card); border: 1px solid var(--a-border);
+      border-radius: 14px; padding: 14px;
+    }
+    #adm .sel-name { font-size: 15px; font-weight: 600; color: var(--a-text); margin-bottom: 4px; }
+    #adm .sel-addr { font-size: 11px; color: var(--a-muted); margin-bottom: 12px; line-height: 1.4; }
+    #adm .sel-stats { display: flex; gap: 8px; margin-bottom: 12px; }
+    #adm .sel-stat { flex: 1; background: var(--a-surface); border: 1px solid var(--a-border); border-radius: 10px; padding: 8px; text-align: center; }
+    #adm .sel-stat-v { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; color: var(--a-accent); }
+    #adm .sel-stat-l { font-size: 10px; color: var(--a-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
+    #adm .sel-actions { display: flex; gap: 8px; }
+    #adm .btn-dir {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 10px; border-radius: 10px; background: var(--a-surface);
+      border: 1.5px solid var(--a-border); color: var(--a-dim);
+      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+      cursor: pointer; text-decoration: none; transition: all 0.15s;
+    }
+    #adm .btn-dir:hover { border-color: var(--a-accent); color: var(--a-accent); }
+    #adm .btn-awp {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 10px; border-radius: 10px; background: var(--a-accent); border: none;
+      color: #fff; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: filter 0.15s;
+    }
+    #adm .btn-awp:hover { filter: brightness(1.1); }
+
+    /* Waypoint cards */
+    #adm .wp-empty, #adm .act-empty { text-align: center; padding: 28px 16px; color: var(--a-muted); font-size: 13px; line-height: 1.6; }
+    #adm .wp-card {
+      background: var(--a-card); border: 1px solid var(--a-border);
+      border-radius: 14px; padding: 13px; margin-bottom: 10px;
+      animation: adm-up 0.2s ease both;
+    }
+    @keyframes adm-up { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+    #adm .wp-hdr { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
+    #adm .wp-num {
+      width: 24px; height: 24px; border-radius: 7px;
+      background: rgba(59,130,246,0.15); color: var(--a-accent);
+      font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+    }
+    #adm .wp-name { font-size: 13px; font-weight: 600; color: var(--a-text); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #adm .wp-meta { font-size: 11px; color: var(--a-muted); }
+    #adm .wp-meta .g { color: var(--a-green); font-weight: 600; }
+    #adm .wp-meta .a { color: var(--a-amber); }
+    #adm .wp-acts { display: flex; gap: 6px; }
+    #adm .wb {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
+      padding: 8px 4px; border-radius: 9px;
+      font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600;
+      cursor: pointer; border: none; transition: all 0.15s; white-space: nowrap;
+    }
+    #adm .wb-dir { background: var(--a-surface); border: 1px solid var(--a-border); color: var(--a-dim); text-decoration: none; }
+    #adm .wb-dir:hover { border-color: var(--a-accent); color: var(--a-accent); }
+    #adm .wb-start { background: var(--a-green); color: #fff; }
+    #adm .wb-start:hover { filter: brightness(1.1); }
+    #adm .wb-del { background: var(--a-surface); border: 1px solid var(--a-border); color: var(--a-muted); max-width: 38px; }
+    #adm .wb-del:hover { border-color: var(--a-red); color: var(--a-red); }
+
+    /* Active delivery cards */
+    #adm .act-card {
+      background: var(--a-card); border: 1px solid rgba(245,158,11,0.35);
+      border-radius: 14px; padding: 13px; margin-bottom: 10px;
+      position: relative; overflow: hidden; animation: adm-up 0.2s ease both;
+    }
+    #adm .act-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,var(--a-amber),var(--a-accent)); }
+    #adm .act-status { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+    #adm .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--a-amber); animation: adm-pulse 1.2s ease-in-out infinite; }
+    #adm .act-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--a-amber); }
+    #adm .act-name { font-size: 14px; font-weight: 600; color: var(--a-text); margin-bottom: 4px; }
+    #adm .act-meta { font-size: 12px; color: var(--a-muted); margin-bottom: 10px; }
+    #adm .act-meta a { color: var(--a-accent); text-decoration: none; }
+    #adm .timers { display: flex; gap: 8px; margin-bottom: 10px; }
+    #adm .tbox { flex: 1; background: var(--a-surface); border: 1px solid var(--a-border); border-radius: 10px; padding: 8px; text-align: center; }
+    #adm .tval { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500; color: var(--a-text); }
+    #adm .tlbl { font-size: 10px; color: var(--a-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
+    #adm .eta-ok { color: var(--a-green) !important; }
+    #adm .eta-late { color: var(--a-red) !important; }
+    #adm .act-acts { display: flex; gap: 7px; }
+    #adm .act-share {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 9px; border-radius: 10px; background: #25D366; color: #fff;
+      text-decoration: none; font-size: 12px; font-weight: 600;
+      border: none; cursor: pointer;
+    }
+    #adm .act-done {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 9px; border-radius: 10px;
+      background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3);
+      color: var(--a-green); font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    #adm .act-done:hover { background: rgba(16,185,129,0.25); }
+
+    /* Admin map popup */
+    #adm .adm-popup { background: var(--a-surface); border: 1px solid var(--a-border); border-radius: 12px; padding: 10px 14px; font-family: 'DM Sans', sans-serif; min-width: 150px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+    #adm .adm-popup .pn { font-size: 12px; font-weight: 600; color: var(--a-text); margin-bottom: 4px; }
+    #adm .adm-popup .pm { font-size: 11px; color: var(--a-muted); }
+    #adm .adm-popup .pf { color: var(--a-green); font-weight: 600; }
+
+    /* Spinner */
+    #adm .aspn { width:14px; height:14px; border:2px solid rgba(59,130,246,0.2); border-top-color:#3b82f6; border-radius:50%; animation:spin .7s linear infinite; display:inline-block; vertical-align:middle; }
+
+    /* Admin toast */
+    #adm-toast {
+      position: fixed; bottom: calc(52vh + 12px); left: 50%; transform: translateX(-50%);
+      background: #0f1c30; border: 1px solid #1e3350; color: #e2e8f0;
+      font-size: 13px; font-weight: 500; padding: 10px 18px; border-radius: 100px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 10000;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s; white-space: nowrap;
+    }
+    #adm-toast.show { opacity: 1; }
   </style>
 </head>
 <body>
 
+  <!-- ════════ PUBLIC PAGE ════════ -->
   <header>
+    <!-- Subtle admin trigger — top right -->
+    <button id="admin-trigger" onclick="openAdmin()" title="Admin Login">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Admin Login
+    </button>
+
     <div class="badge">Live Delivery Pricing</div>
     <h1>Check <span>delivery fee</span></h1>
     <p class="subtitle">Enter your location or tap the map to drop a pin.</p>
@@ -384,25 +703,17 @@
   <div class="card">
     <div class="card-label">Your Delivery Address</div>
 
-    <!-- INPUT ROW + MAP TOGGLE -->
     <div class="input-row">
       <div class="input-wrap">
         <svg class="pin-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
         </svg>
-        <input
-          type="text"
-          id="address"
-          placeholder="Enter your location…"
-          autocomplete="off" autocorrect="off" spellcheck="false"
-        />
+        <input type="text" id="address" placeholder="Enter your location…" autocomplete="off" autocorrect="off" spellcheck="false" />
         <button class="clear-btn" id="clear-btn" tabindex="-1" aria-label="Clear">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
         <div id="suggestions"></div>
       </div>
-
-      <!-- MAP TOGGLE -->
       <button class="map-toggle-btn" id="map-toggle-btn" title="Pick on map">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
@@ -412,13 +723,11 @@
       </button>
     </div>
 
-    <!-- MAP PANEL -->
     <div id="map-panel">
       <div class="map-hint" id="map-hint">Tap anywhere to drop a pin</div>
       <div id="map"></div>
     </div>
 
-    <!-- USE MY LOCATION -->
     <button class="location-btn" id="loc-btn">
       <div class="loc-spinner" id="loc-spinner"></div>
       <svg id="loc-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -430,7 +739,6 @@
 
     <div class="error-msg" id="error-msg"></div>
 
-    <!-- RESULT + WHATSAPP -->
     <div id="result-box">
       <div class="result-summary">
         <div class="result-row">
@@ -455,7 +763,6 @@
     </div>
   </div>
 
-  <!-- INFO STRIP -->
   <div class="info-strip" style="margin-top:20px;">
     <div class="info-row">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
@@ -469,14 +776,149 @@
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
       Same-day delivery within Ilorin and its surroundings
     </div>
+  </div>
+
+  <footer>Brainbox Store 💙 · Delivery fee calculated at ₦200/km</footer>
+
+  <br>
+  <div style="text-align:center;">
+    <a id="pickup-btn"
+      href="https://wa.me/2347012850166?text=I%27d%20prefer%20a%20FREE%20Delivery%20(Pickup%2FMeetup)"
+      target="_blank" rel="noopener"
+      style="display:inline-flex;align-items:center;justify-content:center;gap:10px;width:fit-content;padding:12px 24px;background:#3b82f6;text-align:center;color:#fff;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;border-radius:12px;text-decoration:none;transition:filter 0.2s,transform 0.1s;"
+      onmouseover="this.style.filter='brightness(1.08)'"
+      onmouseout="this.style.filter=''"
+      onmousedown="this.style.transform='scale(0.98)'"
+      onmouseup="this.style.transform=''"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
+      </svg>
+      I prefer a FREE Delivery (Pickup / Meetup)
+    </a>
+  </div>
+  <div style="width:100%;max-width:480px;padding:0 24px;margin-top:12px;position:relative;z-index:1;">
+    <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+  </div>
 
 
-  <!-- Leaflet JS -->
+  <!-- ════════ ADMIN OVERLAY ════════ -->
+  <div id="adm">
+
+    <!-- Login screen -->
+    <div id="login-screen">
+      <div class="login-card">
+        <div class="login-logo">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+          Brainbox <span class="dot">Admin</span>
+        </div>
+        <p class="login-sub">Delivery Manager · Sign in to continue</p>
+        <div class="login-lbl">Username / Email</div>
+        <input type="text" id="login-user" class="login-inp" placeholder="Enter username" autocomplete="off">
+        <div class="login-lbl">Password</div>
+        <input type="password" id="login-pass" class="login-inp" placeholder="Enter password">
+        <button class="login-btn-el" id="login-btn">Sign In</button>
+        <div class="login-err" id="login-error"></div>
+        <div style="margin-top:16px;text-align:center;">
+          <button onclick="closeAdmin()" style="background:none;border:none;font-size:12px;color:#64748b;cursor:pointer;font-family:'DM Sans',sans-serif;">← Back to delivery calculator</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard">
+      <div id="admin-header">
+        <div class="hdr-logo">BB <span>Delivery</span></div>
+        <div class="hdr-badge">Admin</div>
+        <div style="flex:1"></div>
+        <button id="broadcast-btn">
+          <div class="bc-dot"></div>
+          <span id="bc-label">Broadcast</span>
+        </button>
+        <button id="back-btn" onclick="closeAdmin()" title="Back to public page">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+          Exit
+        </button>
+        <button id="logout-btn" title="Logout">×</button>
+      </div>
+
+      <div id="broadcast-bar">
+        <span class="bc-live-lbl">📡 LIVE</span>
+        <span id="bc-coords">Locating…</span>
+        <a id="bc-share-btn" href="#" target="_blank" rel="noopener">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+          Share Location
+        </a>
+      </div>
+
+      <div id="admin-map"></div>
+
+      <div id="bottom-panel">
+        <div class="tab-bar">
+          <button class="a-tab active" data-tab="search">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            Search
+          </button>
+          <button class="a-tab" data-tab="waypoints">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            Waypoints <span class="tcnt" id="wp-count"></span>
+          </button>
+          <button class="a-tab" data-tab="active">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h5l3 3v5h-8V8Z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            Active <span class="tcnt" id="act-count"></span>
+          </button>
+        </div>
+
+        <!-- Search tab -->
+        <div class="tab-pane active" id="tab-search">
+          <div class="srch-wrap">
+            <svg class="srch-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input id="search-input" type="text" placeholder="Search delivery location…" autocomplete="off" autocorrect="off" spellcheck="false">
+          </div>
+          <div id="search-suggestions"></div>
+          <div id="selected-card">
+            <div class="sel-name" id="sel-name"></div>
+            <div class="sel-addr" id="sel-addr"></div>
+            <div class="sel-stats">
+              <div class="sel-stat"><div class="sel-stat-v" id="sel-km"></div><div class="sel-stat-l">Distance</div></div>
+              <div class="sel-stat"><div class="sel-stat-v" id="sel-fee"></div><div class="sel-stat-l">Fee</div></div>
+              <div class="sel-stat"><div class="sel-stat-v" id="sel-eta"></div><div class="sel-stat-l">ETA</div></div>
+            </div>
+            <div class="sel-actions">
+              <a class="btn-dir" id="sel-dir" href="#" target="_blank" rel="noopener">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                Directions
+              </a>
+              <button class="btn-awp" id="btn-add-wp">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Waypoint
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Waypoints tab -->
+        <div class="tab-pane" id="tab-waypoints">
+          <div id="wp-list"></div>
+        </div>
+
+        <!-- Active tab -->
+        <div class="tab-pane" id="tab-active">
+          <div id="act-list"></div>
+        </div>
+      </div>
+    </div><!-- /dashboard -->
+  </div><!-- /adm -->
+
+  <div id="adm-toast"></div>
+
+
+  <!-- ════════ LEAFLET JS (loaded once) ════════ -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+
+  <!-- ════════ PUBLIC PAGE SCRIPT ════════ -->
   <script>
-    /* ══════════════════════════════
-       CONFIG
-    ══════════════════════════════ */
     const CONFIG = {
       whatsappNumber: "2347012850166",
       businessLat:     8.48113,
@@ -493,7 +935,6 @@
     let currentMarker = null;
     let currentPopup = null;
 
-    /* ── Math ── */
     function haversine(lat1, lon1, lat2, lon2) {
       const R = 6371, r = Math.PI / 180;
       const dLat = (lat2-lat1)*r, dLon = (lon2-lon1)*r;
@@ -504,27 +945,22 @@
     const naira     = n => '₦' + n.toLocaleString('en-NG');
     const getRoadKm = (lat,lng) => haversine(CONFIG.businessLat, CONFIG.businessLng, lat, lng) * CONFIG.roadFactor;
 
-    /* ── Smart search helpers ── */
-
-    // Common typo corrections for Nigerian locations
     const TYPO_MAP = {
       'pork':'park', 'prk':'park', 'pak':'park', 'parrk':'park', 'oark':'park',
       'schol':'school', 'scholl':'school', 'scool':'school', 'skool':'school', 'shcool':'school',
       'univercity':'university', 'univeristy':'university', 'univesity':'university', 'unversity':'university',
       'hostel':'hostel', 'hoste':'hostel', 'hotsel':'hostel',
-      'iloirn':'ilorin', 'illorin':'ilorin', 'iloirn':'ilorin',
+      'iloirn':'ilorin', 'illorin':'ilorin',
       'uniloirn':'unilorin', 'unilorn':'unilorin',
       'centere':'center', 'centr':'center', 'sentral':'central',
       'rode':'road', 'raod':'road', 'stret':'street', 'sreet':'street',
       'markrt':'market', 'markt':'market',
     };
-
-    // Words to strip from query (noise words)
     const STOP_WORDS = new Set(['in','at','the','a','an','of','and','near','by','close','to','from','nigeria','ng']);
+    const LOCATION_HIERARCHY = ['Ilorin, Kwara State', 'Kwara State', 'Nigeria'];
 
     function normalizeQuery(raw) {
       let q = raw.toLowerCase().trim();
-      // Fix typos word by word
       q = q.split(/\s+/).map(w => TYPO_MAP[w] || w).join(' ');
       return q;
     }
@@ -534,14 +970,8 @@
       const tokens = norm.split(/\s+/).filter(w => w.length > 1);
       const meaningful = tokens.filter(w => !STOP_WORDS.has(w));
       const queries = new Set();
-
-      // 1. Normalized original
       queries.add(norm);
-
-      // 2. Meaningful tokens only
       queries.add(meaningful.join(' '));
-
-      // 3. All permutations of meaningful words (covers any word order)
       function permute(arr) {
         if (arr.length <= 1) return [arr];
         const result = [];
@@ -554,11 +984,8 @@
       if (meaningful.length >= 2 && meaningful.length <= 4) {
         permute(meaningful).forEach(p => queries.add(p.join(' ')));
       }
-
-      // 4. Broadest single-word fallback
       const longest = [...meaningful].sort((a,b) => b.length - a.length)[0];
       if (longest) queries.add(longest);
-
       return [...queries].filter(Boolean);
     }
 
@@ -568,12 +995,8 @@
     }
 
     async function fetchAllResults(queries) {
-      const seen   = new Set();
-      const merged = [];
-
-      const allFetches = queries.map(q =>
-        fetch(searchURL(q)).then(r => r.json()).catch(() => ({features:[]}))
-      );
+      const seen = new Set(), merged = [];
+      const allFetches = queries.map(q => fetch(searchURL(q)).then(r => r.json()).catch(() => ({features:[]})));
       const results = await Promise.all(allFetches);
       for (const data of results) {
         for (const f of (data.features || [])) {
@@ -582,8 +1005,6 @@
         }
       }
       if (merged.length) return merged;
-
-      // Hierarchical fallback
       for (const context of LOCATION_HIERARCHY.slice(1)) {
         const broadQuery = queries[0] + ', ' + context;
         try {
@@ -599,7 +1020,6 @@
       return merged;
     }
 
-    // Similarity score
     function similarity(str, query) {
       const a = str.toLowerCase(), b = query.toLowerCase();
       if (a === b) return 1;
@@ -610,9 +1030,6 @@
       return matches.length / Math.max(bTok.length, 1);
     }
 
-    /* ══════════════════════════════
-       SUGGESTIONS
-    ══════════════════════════════ */
     const sugBox = document.getElementById('suggestions');
 
     async function fetchSuggestions(text) {
@@ -621,27 +1038,22 @@
       try {
         const queries = buildQueries(text);
         const items   = await fetchAllResults(queries);
-
         if (!items.length) {
           sugBox.innerHTML = '<div class="sug-empty">No results found. Try a shorter or different name.</div>';
           return;
         }
-
-        // Re-rank by similarity
         const norm = normalizeQuery(text);
         items.sort((a, b) => {
           const aName = (a.properties?.name||'') + ' ' + (a.properties?.suburb||'') + ' ' + (a.properties?.city||'');
           const bName = (b.properties?.name||'') + ' ' + (b.properties?.suburb||'') + ' ' + (b.properties?.city||'');
           return similarity(bName, norm) - similarity(aName, norm);
         });
-
         sugBox.innerHTML = '';
         items.forEach(feature => {
           const r   = parsePhoton(feature);
           const km  = getRoadKm(r.lat, r.lng);
           const fee = Math.max(roundDown(km * CONFIG.feePerKm, CONFIG.roundDownTo), CONFIG.minimumFee);
-
-          const el = document.createElement('div');
+          const el  = document.createElement('div');
           el.className = 'suggestion-item';
           el.innerHTML = `
             <div class="sug-icon">${placeIcon(r.type)}</div>
@@ -657,16 +1069,11 @@
             document.getElementById('address').value = r.shortName;
             document.getElementById('clear-btn').style.display = 'flex';
             sugBox.style.display = 'none';
-            if (mapPanel.classList.contains('visible')) {
-              dropPin(r.lat, r.lng);
-            } else {
-              showResult(r);
-            }
+            if (mapPanel.classList.contains('visible')) dropPin(r.lat, r.lng);
+            else showResult(r);
           });
           sugBox.appendChild(el);
         });
-
-        // End of suggestions
         const endEl = document.createElement('div');
         endEl.style.cssText = 'padding:10px 16px;text-align:center;font-size:11px;color:#94a3b8;font-family:DM Sans,sans-serif;border-top:1px solid #e2e8f0;';
         endEl.textContent = '— End of suggestions —';
@@ -676,9 +1083,8 @@
       }
     }
 
-    /* ── Reverse geocode (Photon) ── */
     async function reverseGeocode(lat, lng) {
-      const url = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&lang=en`;
+      const url  = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&lang=en`;
       const res  = await fetch(url);
       const data = await res.json();
       if (!data.features?.length) throw new Error('not_found');
@@ -687,21 +1093,11 @@
 
     function parsePhoton(feature) {
       const p = feature.properties || {};
-      const shortName =
-        p.name || p.street || p.suburb || p.neighbourhood ||
-        p.district || p.city || p.county || 'Selected location';
-      const parts = [p.name, p.street, p.suburb, p.district, p.city, p.state, p.country]
-        .filter(Boolean).join(', ');
-      return {
-        lat:         feature.geometry.coordinates[1],
-        lng:         feature.geometry.coordinates[0],
-        shortName,
-        displayName: parts,
-        type:        (p.osm_value || '') + ' ' + (p.osm_key || '')
-      };
+      const shortName = p.name || p.street || p.suburb || p.neighbourhood || p.district || p.city || p.county || 'Selected location';
+      const parts = [p.name, p.street, p.suburb, p.district, p.city, p.state, p.country].filter(Boolean).join(', ');
+      return { lat: feature.geometry.coordinates[1], lng: feature.geometry.coordinates[0], shortName, displayName: parts, type: (p.osm_value||'')+' '+(p.osm_key||'') };
     }
 
-    /* ── Place icon ── */
     function placeIcon(typeStr) {
       const t = (typeStr || '').toLowerCase();
       if (t.includes('university')||t.includes('school')||t.includes('college'))
@@ -713,141 +1109,65 @@
       return `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
     }
 
-    /* ══════════════════════════════
-       MAP
-    ══════════════════════════════ */
     function initMap() {
       if (mapInitialized) return;
       mapInitialized = true;
-
-      leafletMap = L.map('map', {
-        center: [CONFIG.businessLat, CONFIG.businessLng],
-        zoom: 13,
-        zoomControl: true,
-      });
-
-      // Light CartoDB tiles
+      leafletMap = L.map('map', { center: [CONFIG.businessLat, CONFIG.businessLng], zoom: 13, zoomControl: true });
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-        maxZoom: 19
+        attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors', maxZoom: 19
       }).addTo(leafletMap);
-
-      // Custom blue marker
       const blueIcon = L.divIcon({
         className: '',
-        html: `<div style="
-          width:28px;height:28px;
-          background:#3b82f6;
-          border:3px solid #fff;
-          border-radius:50% 50% 50% 0;
-          transform:rotate(-45deg);
-          box-shadow:0 3px 12px rgba(59,130,246,0.5);
-        "></div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 28],
-        popupAnchor: [0, -32],
+        html: `<div style="width:28px;height:28px;background:#3b82f6;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 3px 12px rgba(59,130,246,0.5);"></div>`,
+        iconSize: [28,28], iconAnchor: [14,28], popupAnchor: [0,-32],
       });
-
-      // Click on map to drop pin
-      leafletMap.on('click', async function(e) {
-        const { lat, lng } = e.latlng;
-        dropPin(lat, lng, blueIcon);
-      });
+      leafletMap.on('click', async function(e) { dropPin(e.latlng.lat, e.latlng.lng, blueIcon); });
     }
 
     async function dropPin(lat, lng, icon) {
-      // Remove old marker
       if (currentMarker) leafletMap.removeLayer(currentMarker);
       if (currentPopup)  leafletMap.removeLayer(currentPopup);
-
-      // Add marker
       const markerIcon = icon || L.divIcon({
         className: '',
         html: `<div style="width:28px;height:28px;background:#3b82f6;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 3px 12px rgba(59,130,246,0.5);"></div>`,
-        iconSize: [28, 28], iconAnchor: [14, 28], popupAnchor: [0, -32],
+        iconSize: [28,28], iconAnchor: [14,28], popupAnchor: [0,-32],
       });
-
       currentMarker = L.marker([lat, lng], { icon: markerIcon }).addTo(leafletMap);
       leafletMap.panTo([lat, lng]);
-
-      // Hide hint
       document.getElementById('map-hint').style.display = 'none';
-
-      // Calculate fee immediately with coords
       const km  = getRoadKm(lat, lng);
       const fee = Math.max(roundDown(km * CONFIG.feePerKm, CONFIG.roundDownTo), CONFIG.minimumFee);
-
-      // Reverse geocode for name
       let locationName = 'Selected location';
-      try {
-        const dest = await reverseGeocode(lat, lng);
-        locationName = dest.shortName;
-      } catch {}
-
-      // Custom popup above pin
-      const popupHTML = `
-        <div class="map-popup">
-          <div class="pop-location">${locationName}</div>
-          <div class="pop-row">📏 <span>${km.toFixed(1)} km</span> &nbsp;·&nbsp; 🚚 <span class="pop-val">${naira(fee)}</span></div>
-        </div>`;
-
-      currentPopup = L.popup({ closeButton: false, className: 'custom-popup', offset: [0, -10] })
-        .setLatLng([lat, lng])
-        .setContent(popupHTML)
-        .openOn(leafletMap);
-
-      // Show result below
+      try { const dest = await reverseGeocode(lat, lng); locationName = dest.shortName; } catch {}
+      const popupHTML = `<div class="map-popup"><div class="pop-location">${locationName}</div><div class="pop-row">📏 <span>${km.toFixed(1)} km</span> &nbsp;·&nbsp; 🚚 <span class="pop-val">${naira(fee)}</span></div></div>`;
+      currentPopup = L.popup({ closeButton: false, className: 'custom-popup', offset: [0,-10] })
+        .setLatLng([lat, lng]).setContent(popupHTML).openOn(leafletMap);
       showResult({ lat, lng, shortName: locationName, displayName: locationName });
     }
 
-    /* ── Map toggle button ── */
     const mapToggleBtn = document.getElementById('map-toggle-btn');
     const mapPanel     = document.getElementById('map-panel');
-
     mapToggleBtn.addEventListener('click', () => {
       const isOpen = mapPanel.classList.contains('visible');
-      if (isOpen) {
-        mapPanel.classList.remove('visible');
-        mapToggleBtn.classList.remove('active');
-      } else {
-        mapPanel.classList.add('visible');
-        mapToggleBtn.classList.add('active');
-        initMap();
-        setTimeout(() => leafletMap.invalidateSize(), 100);
-      }
+      if (isOpen) { mapPanel.classList.remove('visible'); mapToggleBtn.classList.remove('active'); }
+      else { mapPanel.classList.add('visible'); mapToggleBtn.classList.add('active'); initMap(); setTimeout(() => leafletMap.invalidateSize(), 100); }
     });
 
-
-    /* ══════════════════════════════
-       SHOW RESULT
-    ══════════════════════════════ */
     function showResult(dest) {
       const km  = getRoadKm(dest.lat, dest.lng);
       const fee = Math.max(roundDown(km * CONFIG.feePerKm, CONFIG.roundDownTo), CONFIG.minimumFee);
-
       document.getElementById('loc-name').textContent   = dest.shortName;
       document.getElementById('dist-text').textContent  = km.toFixed(1) + ' km';
       document.getElementById('fee-amount').textContent = naira(fee);
-
-      const msg = encodeURIComponent(
-        `📍 Delivery address: ${dest.shortName}\n` +
-        `📏 Distance: ${km.toFixed(1)} km\n` +
-        `🚚 Delivery fee: ${naira(fee)}`
-      );
+      const msg = encodeURIComponent(`📍 Delivery address: ${dest.shortName}\n📏 Distance: ${km.toFixed(1)} km\n🚚 Delivery fee: ${naira(fee)}`);
       document.getElementById('wa-link').href = `https://wa.me/${CONFIG.whatsappNumber}?text=${msg}`;
-
       document.getElementById('error-msg').style.display = 'none';
       const box = document.getElementById('result-box');
-      box.style.display = 'block';
-      box.style.animation = 'none';
-      box.offsetHeight;
+      box.style.display = 'block'; box.style.animation = 'none'; box.offsetHeight;
       box.style.animation = 'slideUp 0.4s cubic-bezier(0.16,1,0.3,1) both';
       setTimeout(() => box.scrollIntoView({ behavior:'smooth', block:'nearest' }), 100);
     }
 
-    /* ══════════════════════════════
-       USE MY LOCATION
-    ══════════════════════════════ */
     const locBtn     = document.getElementById('loc-btn');
     const locSpinner = document.getElementById('loc-spinner');
     const locIcon    = document.getElementById('loc-icon');
@@ -855,11 +1175,8 @@
 
     locBtn.addEventListener('click', () => {
       if (!navigator.geolocation) { showError('Geolocation not supported.'); return; }
-      locSpinner.style.display = 'block';
-      locIcon.style.display    = 'none';
-      locText.textContent      = 'Getting your location…';
-      locBtn.disabled          = true;
-
+      locSpinner.style.display = 'block'; locIcon.style.display = 'none';
+      locText.textContent = 'Getting your location…'; locBtn.disabled = true;
       navigator.geolocation.getCurrentPosition(
         async pos => {
           try {
@@ -868,22 +1185,13 @@
             document.getElementById('address').value = dest.shortName;
             document.getElementById('clear-btn').style.display = 'flex';
             sugBox.style.display = 'none';
-            // If map is open, drop pin; else just show result
-            if (mapPanel.classList.contains('visible')) {
-              dropPin(lat, lng);
-            } else {
-              showResult(dest);
-            }
-          } catch {
-            showError('Could not find your address. Try typing it.');
-          } finally { resetLocBtn(); }
+            if (mapPanel.classList.contains('visible')) dropPin(lat, lng);
+            else showResult(dest);
+          } catch { showError('Could not find your address. Try typing it.'); }
+          finally { resetLocBtn(); }
         },
         err => {
-          const msgs = {
-            1: 'Location access denied. Allow location in browser settings.',
-            2: 'Could not detect position. Try typing your address.',
-            3: 'Location timed out. Try again.',
-          };
+          const msgs = { 1:'Location access denied. Allow location in browser settings.', 2:'Could not detect position. Try typing your address.', 3:'Location timed out. Try again.' };
           showError(msgs[err.code] || 'Location error. Try typing.');
           resetLocBtn();
         },
@@ -892,18 +1200,12 @@
     });
 
     function resetLocBtn() {
-      locSpinner.style.display = 'none';
-      locIcon.style.display    = 'block';
-      locText.textContent      = 'Use my exact location';
-      locBtn.disabled          = false;
+      locSpinner.style.display = 'none'; locIcon.style.display = 'block';
+      locText.textContent = 'Use my exact location'; locBtn.disabled = false;
     }
 
-    /* ══════════════════════════════
-       INPUT WIRING
-    ══════════════════════════════ */
     const inp      = document.getElementById('address');
     const clearBtn = document.getElementById('clear-btn');
-
     inp.addEventListener('input', () => {
       const v = inp.value.trim();
       clearBtn.style.display = v ? 'flex' : 'none';
@@ -912,20 +1214,15 @@
       if (v.length >= 2) debounceTimer = setTimeout(() => fetchSuggestions(v), 380);
       else sugBox.style.display = 'none';
     });
-
     inp.addEventListener('blur',  () => setTimeout(() => { sugBox.style.display = 'none'; }, 160));
     inp.addEventListener('focus', () => { if (inp.value.trim().length >= 2) sugBox.style.display = 'block'; });
     inp.addEventListener('keydown', e => { if (e.key === 'Escape') sugBox.style.display = 'none'; });
-
     clearBtn.addEventListener('click', () => {
-      inp.value = '';
-      clearBtn.style.display = 'none';
-      sugBox.style.display = 'none';
+      inp.value = ''; clearBtn.style.display = 'none'; sugBox.style.display = 'none';
       document.getElementById('result-box').style.display = 'none';
       document.getElementById('error-msg').style.display  = 'none';
       inp.focus();
     });
-
     function showError(msg) {
       const e = document.getElementById('error-msg');
       e.textContent = msg; e.style.display = 'block';
@@ -933,48 +1230,322 @@
   </script>
 
 
+  <!-- ════════ ADMIN SCRIPT ════════ -->
+  <script>
+    /* ── Open / close overlay ── */
+    function openAdmin() {
+      document.getElementById('adm').style.display = 'flex';
+      document.body.classList.add('admin-open');
+    }
+    function closeAdmin() {
+      document.getElementById('adm').style.display = 'none';
+      document.body.classList.remove('admin-open');
+    }
 
-  <footer>Brainbox Store 💙 · Delivery fee calculated at ₦200/km</footer>
-  
-    </div>
-    
-<br></br>
+    /* ── Config (prefixed CFG to avoid conflict with public CONFIG) ── */
+    const CFG = {
+      wa: "2347012850166",
+      lat: 8.48113, lng: 4.66786,
+      feePerKm: 200, minFee: 500, roundTo: 500,
+      roadFactor: 1.4, speedKmh: 25,
+    };
 
-    <div style="text-align:center;">
-    <a id="pickup-btn"
-      href="https://wa.me/2347012850166?text=I%27d%20prefer%20a%20FREE%20Delivery%20(Pickup%2FMeetup)"
-      target="_blank" rel="noopener"
-      style="
-        display:inline-flex;align-items:center;justify-content:center;gap:10px;
-        width:fit-content;padding:12px 24px;
-        background:#3b82f6;
-        text-align:center;
-        color:#fff;
-        font-family:'Syne',sans-serif;
-        font-size:15px;font-weight:700;
-        border-radius:12px;
-        text-decoration:none;
-        transition:filter 0.2s,transform 0.1s;
-      "
-      onmouseover="this.style.filter='brightness(1.08)'"
-      onmouseout="this.style.filter=''"
-      onmousedown="this.style.transform='scale(0.98)'"
-      onmouseup="this.style.transform=''"
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
-      </svg>
-      I prefer a FREE Delivery (Pickup / Meetup)
-    </a>
-    </div>
-  </div>
+    /* ── Helpers (admNaira avoids redeclaration of public's naira) ── */
+    const admHav  = (la1,lo1,la2,lo2) => { const R=6371,r=Math.PI/180,dLa=(la2-la1)*r,dLo=(lo2-lo1)*r; const a=Math.sin(dLa/2)**2+Math.cos(la1*r)*Math.cos(la2*r)*Math.sin(dLo/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); };
+    const admRdKm = (la,lo) => admHav(CFG.lat,CFG.lng,la,lo)*CFG.roadFactor;
+    const admFee  = km => Math.max(Math.floor(km*CFG.feePerKm/CFG.roundTo)*CFG.roundTo, CFG.minFee);
+    const admNaira= n => '₦'+n.toLocaleString('en-NG');
+    const admEta  = km => Math.ceil(km/CFG.speedKmh*60);
+    const admPad  = n => String(n).padStart(2,'0');
+    const admFmtM = m => m>=60?`${Math.floor(m/60)}h ${m%60}m`:`${m} min`;
+    const admArr  = m => { const d=new Date(Date.now()+m*60000); return `${admPad(d.getHours())}:${admPad(d.getMinutes())}`; };
 
-  
-  <!-- PICKUP / MEETUP BUTTON -->
-    <div style="width:100%;max-width:480px;padding:0 24px;margin-top:12px;position:relative;z-index:1;">
-      <span style="font-size:12px;font-weight:600;color:#94a3b8;letter-spacing:0.06em;text-transform:uppercase;"></span>
-      <div style="flex:1;height:1px;background:#e2e8f0;"></div>
-    </div>
+    /* ── Toast ── */
+    const admToast = (msg,dur=2500) => {
+      const el=document.getElementById('adm-toast');
+      el.textContent=msg; el.classList.add('show');
+      setTimeout(()=>el.classList.remove('show'),dur);
+    };
+
+    /* ── Login ── */
+    function tryLogin() {
+      const user = document.getElementById('login-user').value.trim();
+      const pass = document.getElementById('login-pass').value.trim();
+      const err  = document.getElementById('login-error');
+      err.style.display = 'none';
+      if (!user||!pass) { err.textContent='Enter username and password.'; err.style.display='block'; return; }
+      const CREDS = { u:'brainboxstores@gmail.com', p:'Jesudarasimi100%' };
+      if (user.toLowerCase()===CREDS.u && pass===CREDS.p) {
+        document.getElementById('login-screen').style.display='none';
+        document.getElementById('dashboard').style.display='flex';
+        admInitDash();
+      } else {
+        err.textContent='Incorrect username or password.'; err.style.display='block';
+      }
+    }
+    document.getElementById('login-btn').addEventListener('click', tryLogin);
+    document.getElementById('login-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') tryLogin(); });
+    document.getElementById('login-user').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
+
+    /* ── Data ── */
+    let admWPs = [];
+    const admLoad = () => { try { admWPs=JSON.parse(localStorage.getItem('bb_wps')||'[]'); } catch { admWPs=[]; } };
+    const admSave = () => localStorage.setItem('bb_wps', JSON.stringify(admWPs));
+    const admPlanned = () => admWPs.filter(w=>w.status==='planned');
+    const admActive  = () => admWPs.filter(w=>w.status==='active');
+
+    /* ── Admin Map (renamed to avoid conflict with public initMap) ── */
+    let admMap, admRoute, admDest, admRider;
+
+    function admInitMap() {
+      admMap = L.map('admin-map', { center:[CFG.lat,CFG.lng], zoom:13, zoomControl:true });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap', maxZoom:19 }).addTo(admMap);
+      const storeIco = L.divIcon({ className:'', html:`<div style="width:18px;height:18px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(59,130,246,0.6);"></div>`, iconSize:[18,18], iconAnchor:[9,9] });
+      L.marker([CFG.lat,CFG.lng],{icon:storeIco}).addTo(admMap)
+        .bindPopup('<div class="adm-popup"><div class="pn">📦 Brainbox Store</div><div class="pm">Delivery Origin</div></div>');
+    }
+
+    async function admDrawRoute(la, lo) {
+      if (admRoute) admMap.removeLayer(admRoute);
+      if (admDest)  admMap.removeLayer(admDest);
+      const dIco = L.divIcon({ className:'', html:`<div style="width:26px;height:26px;background:#10b981;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 3px 12px rgba(16,185,129,0.5);"></div>`, iconSize:[26,26], iconAnchor:[13,26] });
+      admDest = L.marker([la,lo],{icon:dIco}).addTo(admMap);
+      try {
+        const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${CFG.lng},${CFG.lat};${lo},${la}?overview=full&geometries=geojson`);
+        const d = await r.json();
+        if (d.routes?.[0]) {
+          admRoute = L.geoJSON(d.routes[0].geometry,{style:{color:'#3b82f6',weight:4,opacity:0.75,dashArray:'8,4'}}).addTo(admMap);
+          admMap.fitBounds(admRoute.getBounds(),{padding:[30,30]});
+        } else throw new Error();
+      } catch {
+        admRoute = L.polyline([[CFG.lat,CFG.lng],[la,lo]],{color:'#3b82f6',weight:3,opacity:0.6,dashArray:'8,4'}).addTo(admMap);
+        admMap.fitBounds([[CFG.lat,CFG.lng],[la,lo]],{padding:[40,40]});
+      }
+    }
+
+    function admSetRider(la, lo) {
+      if (admRider) admMap.removeLayer(admRider);
+      const ico = L.divIcon({ className:'', html:`<div style="width:36px;height:36px;background:#ef4444;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(239,68,68,0.2),0 4px 16px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:16px;">🛵</div>`, iconSize:[36,36], iconAnchor:[18,18] });
+      admRider = L.marker([la,lo],{icon:ico,zIndexOffset:1000}).addTo(admMap);
+    }
+
+    /* ── Broadcast ── */
+    let admWatchId=null, riderLat=null, riderLng=null, admBroadcasting=false;
+
+    function admStartBroadcast() {
+      if (!navigator.geolocation) { admToast('❌ Geolocation not supported'); return; }
+      admBroadcasting=true;
+      document.getElementById('broadcast-btn').classList.add('active');
+      document.getElementById('bc-label').textContent='Live';
+      document.getElementById('broadcast-bar').classList.add('visible');
+      document.getElementById('bc-coords').textContent='Locating…';
+      admWatchId = navigator.geolocation.watchPosition(
+        pos => {
+          const {latitude:la,longitude:lo,accuracy:ac} = pos.coords;
+          riderLat=la; riderLng=lo;
+          document.getElementById('bc-coords').textContent=`${la.toFixed(5)}, ${lo.toFixed(5)} (±${Math.round(ac)}m)`;
+          admSetRider(la,lo);
+          admUpdateBcLink(la,lo);
+        },
+        () => { document.getElementById('bc-coords').textContent='Location error'; },
+        {enableHighAccuracy:true,timeout:15000,maximumAge:8000}
+      );
+    }
+    function admStopBroadcast() {
+      admBroadcasting=false;
+      if (admWatchId!==null) { navigator.geolocation.clearWatch(admWatchId); admWatchId=null; }
+      document.getElementById('broadcast-btn').classList.remove('active');
+      document.getElementById('bc-label').textContent='Broadcast';
+      document.getElementById('broadcast-bar').classList.remove('visible');
+      if (admRider) { admMap.removeLayer(admRider); admRider=null; }
+      riderLat=null; riderLng=null;
+    }
+    function admUpdateBcLink(la,lo) {
+      const mUrl=`https://www.google.com/maps?q=${la},${lo}`;
+      const msg=encodeURIComponent(`🛵 *Brainbox Store – Rider Location Update*\n\nYour delivery rider is here:\n📍 ${mUrl}\n\nOpen in Google Maps for live tracking.`);
+      document.getElementById('bc-share-btn').href=`https://wa.me/?text=${msg}`;
+    }
+    document.getElementById('broadcast-btn').addEventListener('click',()=>{ admBroadcasting?admStopBroadcast():admStartBroadcast(); });
+
+    /* ── Admin Search ── */
+    const ADM_TYPOS = {pork:'park',prk:'park',schol:'school',skool:'school',univercity:'university',unilorn:'unilorin',iloirn:'ilorin',illorin:'ilorin',rode:'road',raod:'road',markrt:'market'};
+    const ADM_STOPS = new Set(['in','at','the','a','an','of','and','near','by','to','from','nigeria','ng']);
+    const admNorm   = s => s.toLowerCase().trim().split(/\s+/).map(w=>ADM_TYPOS[w]||w).join(' ');
+    const admSUrl   = (q,n=20) => `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=${n}&lang=en&lat=8.4799&lon=4.5418&bbox=2.6,4.2,14.7,13.9`;
+    const admPx     = f => { const p=f.properties||{}; const sn=p.name||p.street||p.suburb||p.neighbourhood||p.district||p.city||'Location'; const dn=[p.name,p.street,p.suburb,p.district,p.city,p.state,p.country].filter(Boolean).join(', '); return {lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0],shortName:sn,displayName:dn}; };
+
+    let admSelLoc=null, admSearchTimer=null;
+
+    async function admFetchSugs(text) {
+      const sb=document.getElementById('search-suggestions');
+      sb.innerHTML=`<div class="asug-loading"><div class="aspn"></div> Searching…</div>`;
+      sb.style.display='block';
+      try {
+        const n=admNorm(text), tokens=n.split(/\s+/).filter(w=>w.length>1).filter(w=>!ADM_STOPS.has(w));
+        const queries=[n,tokens.join(' '),tokens.sort((a,b)=>b.length-a.length)[0]].filter(Boolean);
+        const seen=new Set(), merged=[];
+        await Promise.all([...new Set(queries)].map(q=>fetch(admSUrl(q)).then(r=>r.json()).catch(()=>({features:[]}))
+          .then(d=>{(d.features||[]).forEach(f=>{const id=f.properties?.osm_id||f.geometry.coordinates.join(',');if(!seen.has(id)){seen.add(id);merged.push(f);}});})
+        ));
+        if (!merged.length) { sb.innerHTML='<div class="asug-empty">No results found.</div>'; return; }
+        sb.innerHTML='';
+        merged.slice(0,8).forEach(feature=>{
+          const r=admPx(feature), km=admRdKm(r.lat,r.lng), fee=admFee(km);
+          const el=document.createElement('div'); el.className='asug';
+          el.innerHTML=`<div class="asug-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div><div><div class="asug-main">${r.shortName}</div><div class="asug-sub">${km.toFixed(1)} km · <span class="asug-fee">${admNaira(fee)}</span> · ~${admFmtM(admEta(km))}</div></div>`;
+          const pick=e=>{e.preventDefault();admSelectLoc(r);};
+          el.addEventListener('mousedown',pick); el.addEventListener('touchend',pick);
+          sb.appendChild(el);
+        });
+      } catch { document.getElementById('search-suggestions').innerHTML='<div class="asug-empty">Search failed. Try again.</div>'; }
+    }
+
+    function admSelectLoc(r) {
+      admSelLoc=r;
+      document.getElementById('search-suggestions').style.display='none';
+      document.getElementById('search-input').value=r.shortName;
+      const km=admRdKm(r.lat,r.lng), fee=admFee(km), eta=admEta(km);
+      document.getElementById('sel-name').textContent=r.shortName;
+      document.getElementById('sel-addr').textContent=r.displayName||r.shortName;
+      document.getElementById('sel-km').textContent=km.toFixed(1)+' km';
+      document.getElementById('sel-fee').textContent=admNaira(fee);
+      document.getElementById('sel-eta').textContent='~'+admFmtM(eta);
+      document.getElementById('sel-dir').href=`https://www.google.com/maps/dir/?api=1&origin=${CFG.lat},${CFG.lng}&destination=${r.lat},${r.lng}&travelmode=driving`;
+      document.getElementById('selected-card').style.display='block';
+      admDrawRoute(r.lat,r.lng);
+    }
+
+    document.getElementById('search-input').addEventListener('input',e=>{
+      clearTimeout(admSearchTimer);
+      document.getElementById('selected-card').style.display='none';
+      const v=e.target.value.trim();
+      if(v.length>=2) admSearchTimer=setTimeout(()=>admFetchSugs(v),380);
+      else document.getElementById('search-suggestions').style.display='none';
+    });
+    document.getElementById('search-input').addEventListener('blur',()=>setTimeout(()=>{document.getElementById('search-suggestions').style.display='none';},180));
+    document.getElementById('search-input').addEventListener('focus',()=>{ if(document.getElementById('search-input').value.length>=2) document.getElementById('search-suggestions').style.display='block'; });
+
+    document.getElementById('btn-add-wp').addEventListener('click',()=>{
+      if(!admSelLoc) return;
+      const r=admSelLoc, km=admRdKm(r.lat,r.lng);
+      const wp={id:Date.now(),name:r.shortName,displayName:r.displayName||r.shortName,lat:r.lat,lng:r.lng,km,fee:admFee(km),eta:admEta(km),status:'planned',startedAt:null};
+      admWPs.unshift(wp); admSave(); admRenderAll();
+      admToast(`📍 "${r.shortName}" added to waypoints`);
+      document.getElementById('selected-card').style.display='none';
+      document.getElementById('search-input').value='';
+      admSwitchTab('waypoints');
+    });
+
+    /* ── Tabs ── */
+    const admSwitchTab = name => {
+      document.querySelectorAll('.a-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+      document.querySelectorAll('.tab-pane').forEach(c=>c.classList.toggle('active',c.id==='tab-'+name));
+    };
+    document.querySelectorAll('.a-tab').forEach(b=>b.addEventListener('click',()=>admSwitchTab(b.dataset.tab)));
+
+    /* ── Render waypoints ── */
+    function admRenderWP() {
+      const pl=admPlanned(), cnt=document.getElementById('wp-count');
+      cnt.textContent=pl.length; cnt.classList.toggle('show',pl.length>0);
+      const list=document.getElementById('wp-list');
+      if(!pl.length){list.innerHTML='<div class="wp-empty">No planned waypoints yet.<br>Search a location and tap <strong>Add Waypoint</strong>.</div>';return;}
+      list.innerHTML='';
+      pl.forEach((wp,i)=>{
+        const gm=`https://www.google.com/maps/dir/?api=1&origin=${CFG.lat},${CFG.lng}&destination=${wp.lat},${wp.lng}&travelmode=driving`;
+        const el=document.createElement('div'); el.className='wp-card';
+        el.innerHTML=`<div class="wp-hdr"><div class="wp-num">${i+1}</div><div style="flex:1;min-width:0"><div class="wp-name">${wp.name}</div><div class="wp-meta"><span class="g">${admNaira(wp.fee)}</span> · ${wp.km.toFixed(1)} km · <span class="a">~${admFmtM(wp.eta)}</span></div></div></div><div class="wp-acts"><a class="wb wb-dir" href="${gm}" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>Directions</a><button class="wb wb-start" data-id="${wp.id}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>Start</button><button class="wb wb-del" data-id="${wp.id}" style="max-width:38px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;
+        el.querySelector('.wb-start').addEventListener('click',()=>admStartDelivery(wp.id));
+        el.querySelector('.wb-del').addEventListener('click',()=>admRemoveWP(wp.id));
+        list.appendChild(el);
+      });
+    }
+
+    /* ── Render active deliveries ── */
+    function admRenderActive() {
+      const ac=admActive(), cnt=document.getElementById('act-count');
+      cnt.textContent=ac.length; cnt.classList.toggle('show',ac.length>0);
+      const list=document.getElementById('act-list');
+      if(!ac.length){list.innerHTML='<div class="act-empty">No active deliveries.<br>Start one from Waypoints.</div>';return;}
+      list.innerHTML='';
+      ac.forEach(wp=>{
+        const gm=`https://www.google.com/maps/dir/?api=1&origin=${CFG.lat},${CFG.lng}&destination=${wp.lat},${wp.lng}&travelmode=driving`;
+        const el=document.createElement('div'); el.className='act-card'; el.id=`ac-${wp.id}`;
+        el.innerHTML=`<div class="act-status"><div class="live-dot"></div><span class="act-lbl">In Transit</span></div><div class="act-name">${wp.name}</div><div class="act-meta">${wp.km.toFixed(1)} km · ${admNaira(wp.fee)} · <a href="${gm}" target="_blank" rel="noopener">Open in Maps ↗</a></div><div class="timers"><div class="tbox"><div class="tval" id="el-${wp.id}">0:00</div><div class="tlbl">Elapsed</div></div><div class="tbox"><div class="tval eta-ok" id="ar-${wp.id}">${admArr(wp.eta)}</div><div class="tlbl">Arrival</div></div><div class="tbox"><div class="tval eta-ok" id="rm-${wp.id}">${admFmtM(wp.eta)}</div><div class="tlbl">Remaining</div></div></div><div class="act-acts"><a class="act-share" id="sh-${wp.id}" href="#" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>Share ETA</a><button class="act-done" data-id="${wp.id}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Delivered ✓</button></div>`;
+        el.querySelector('.act-done').addEventListener('click',()=>admMarkDone(wp.id));
+        admRefreshShare(wp);
+        list.appendChild(el);
+      });
+    }
+
+    function admRefreshShare(wp) {
+      const el=document.getElementById(`sh-${wp.id}`); if(!el) return;
+      const locPart=riderLat?`\n📍 Rider location: https://www.google.com/maps?q=${riderLat},${riderLng}`:'';
+      const msg=encodeURIComponent(`🛵 *Brainbox Store – Your Delivery is On the Way!*\n\n📦 Delivering to: ${wp.name}\n📏 Distance: ${wp.km.toFixed(1)} km\n⏱️ Est. arrival: ${admArr(wp.eta)}${locPart}\n\nThank you for choosing Brainbox Store! 💙`);
+      el.href=`https://wa.me/${CFG.wa}?text=${msg}`;
+    }
+
+    const admRenderAll = () => { admRenderWP(); admRenderActive(); };
+
+    /* ── Timers ── */
+    let admTimerTick=null;
+    function admStartTimers() {
+      if(admTimerTick) clearInterval(admTimerTick);
+      admTimerTick=setInterval(()=>{
+        admActive().forEach(wp=>{
+          const elapsed=Date.now()-wp.startedAt, em=Math.floor(elapsed/1000/60), es=Math.floor(elapsed/1000)%60;
+          const remain=wp.eta-em;
+          const elEl=document.getElementById(`el-${wp.id}`);
+          const rmEl=document.getElementById(`rm-${wp.id}`);
+          const arEl=document.getElementById(`ar-${wp.id}`);
+          if(elEl) elEl.textContent=`${em}:${admPad(es)}`;
+          if(arEl) arEl.textContent=admArr(Math.max(remain,0));
+          if(rmEl){
+            if(remain>0){rmEl.textContent=admFmtM(remain);rmEl.className='tval eta-ok';}
+            else{rmEl.textContent=`+${admFmtM(-remain)} late`;rmEl.className='tval eta-late';}
+          }
+          if(riderLat) admRefreshShare(wp);
+        });
+      },1000);
+    }
+
+    /* ── Delivery actions ── */
+    function admStartDelivery(id) {
+      const wp=admWPs.find(w=>w.id===id); if(!wp) return;
+      wp.status='active'; wp.startedAt=Date.now(); admSave(); admRenderAll(); admStartTimers();
+      admDrawRoute(wp.lat,wp.lng); admSwitchTab('active');
+      admToast(`🚚 Delivery to "${wp.name}" started!`);
+    }
+    function admMarkDone(id) {
+      const idx=admWPs.findIndex(w=>w.id===id); if(idx<0) return;
+      const name=admWPs[idx].name; admWPs.splice(idx,1); admSave(); admRenderAll();
+      admToast(`✅ "${name}" marked as delivered!`);
+      if(!admActive().length&&admTimerTick){clearInterval(admTimerTick);admTimerTick=null;}
+    }
+    function admRemoveWP(id) {
+      const idx=admWPs.findIndex(w=>w.id===id); if(idx<0) return;
+      const name=admWPs[idx].name; admWPs.splice(idx,1); admSave(); admRenderWP();
+      admToast(`🗑 "${name}" removed`);
+    }
+
+    /* ── Logout ── */
+    document.getElementById('logout-btn').addEventListener('click',()=>{
+      if(!confirm('Sign out of Brainbox Admin?')) return;
+      admStopBroadcast();
+      if(admTimerTick){clearInterval(admTimerTick);admTimerTick=null;}
+      document.getElementById('dashboard').style.display='none';
+      document.getElementById('login-screen').style.display='flex';
+      document.getElementById('login-user').value='';
+      document.getElementById('login-pass').value='';
+      closeAdmin();
+    });
+
+    /* ── Init dashboard (called after successful login) ── */
+    function admInitDash() {
+      admLoad(); admInitMap(); admRenderAll();
+      if(admActive().length) admStartTimers();
+      setTimeout(()=>admMap&&admMap.invalidateSize(),150);
+    }
+  </script>
 
 </body>
 </html>
