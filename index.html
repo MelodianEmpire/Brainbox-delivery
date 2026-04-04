@@ -922,7 +922,7 @@
       <svg class="ldb-chevron" id="ldb-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
     </button>
     <div id="no-delivery-alert" class="no-delivery-alert">
-      🚫 No delivery is currently active. Check back later or <button onclick="openAdmin()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;padding:0;">place your order</button>.
+      🚫 No delivery is currently active. Check back later.
     </div>
     <div id="live-map-panel">
       <div id="live-map"></div>
@@ -1393,12 +1393,14 @@
     });
 
     function showResult(dest) {
+      lastDest = dest;
       const km  = getRoadKm(dest.lat, dest.lng);
       const fee = Math.max(roundDown(km * CONFIG.feePerKm, CONFIG.roundDownTo), CONFIG.minimumFee);
-      document.getElementById('loc-name').textContent   = dest.shortName;
+      const coords = `${dest.lat.toFixed(5)}, ${dest.lng.toFixed(5)}`;
+      document.getElementById('loc-name').innerHTML = `${dest.shortName} <span style="color:var(--muted);font-size:12px;font-weight:400;">(${coords})</span>`;
       document.getElementById('dist-text').textContent  = km.toFixed(1) + ' km';
       document.getElementById('fee-amount').textContent = naira(fee);
-      const msg = encodeURIComponent(`📍 Delivery address: ${dest.shortName}\n📏 Distance: ${km.toFixed(1)} km\n🚚 Delivery fee: ${naira(fee)}`);
+      const msg = encodeURIComponent(`📍 Delivery address: ${dest.shortName} (${coords})\n📏 Distance: ${km.toFixed(1)} km\n🚚 Delivery fee: ${naira(fee)}`);
       document.getElementById('wa-link').href = `https://wa.me/${CONFIG.whatsappNumber}?text=${msg}`;
       document.getElementById('error-msg').style.display = 'none';
       const box = document.getElementById('result-box');
@@ -1549,14 +1551,14 @@
 
     function schedConfirm() {
       const { dateLabel, timeLabel } = spGetScheduleText();
-      const urgent = spSlot === 'now';
       let msg;
       if (spMode === 'delivery' && lastDest) {
         const km  = getRoadKm(lastDest.lat, lastDest.lng);
         const fee = Math.max(roundDown(km * CONFIG.feePerKm, CONFIG.roundDownTo), CONFIG.minimumFee);
+        const coords = `${lastDest.lat.toFixed(5)}, ${lastDest.lng.toFixed(5)}`;
         msg = encodeURIComponent(
-          (urgent ? '⚡ *URGENT DELIVERY REQUEST*\n\n' : '') +
-          `📍 Delivery address: ${lastDest.shortName}\n` +
+          `*Brainbox Store Delivery Details*\n\n` +
+          `📍 Delivery address: ${lastDest.shortName} (${coords})\n` +
           `📏 Distance: ${km.toFixed(1)} km\n` +
           `🚚 Delivery fee: ${naira(fee)}\n` +
           `📅 Preferred date: ${dateLabel}\n` +
@@ -1565,7 +1567,7 @@
       } else {
         // Pickup / meetup mode
         msg = encodeURIComponent(
-          (urgent ? '⚡ *URGENT* — ' : '') +
+          `*Brainbox Store Delivery Details*\n\n` +
           `I'd prefer a FREE Delivery (Pickup/Meetup)\n` +
           `📅 Preferred date: ${dateLabel}\n` +
           `🕐 Preferred time: ${timeLabel}`
@@ -1684,8 +1686,51 @@
       setTimeout(() => custMap && custMap.invalidateSize(), 120);
     }
 
-    // Poll every 4s
-    setInterval(() => { updateLiveBtn(); if (liveMapOpen) custMapRefresh(); }, 4000);
+    // Poll every 4s — reads localStorage so customer tabs stay in sync with admin
+    setInterval(() => {
+      try {
+        const raw = localStorage.getItem('bbLiveState');
+        if (raw) {
+          const s = JSON.parse(raw);
+          if (s && s.active && s.ts && (Date.now() - s.ts < 30000)) {
+            window.bbLive.active     = true;
+            window.bbLive.riderLat   = s.riderLat;
+            window.bbLive.riderLng   = s.riderLng;
+            if (s.destLat)      window.bbLive.destLat     = s.destLat;
+            if (s.destLng)      window.bbLive.destLng     = s.destLng;
+            if (s.routePoints)  window.bbLive.routePoints = s.routePoints;
+          } else {
+            window.bbLive.active   = false;
+            window.bbLive.riderLat = null;
+            window.bbLive.riderLng = null;
+          }
+        }
+      } catch(e) {}
+      updateLiveBtn();
+      if (liveMapOpen) custMapRefresh();
+    }, 4000);
+
+    // Instant cross-tab update via storage event
+    window.addEventListener('storage', function(e) {
+      if (e.key !== 'bbLiveState') return;
+      try {
+        const s = e.newValue ? JSON.parse(e.newValue) : { active: false };
+        if (s && s.active && s.riderLat) {
+          window.bbLive.active     = true;
+          window.bbLive.riderLat   = s.riderLat;
+          window.bbLive.riderLng   = s.riderLng;
+          if (s.destLat)      window.bbLive.destLat     = s.destLat;
+          if (s.destLng)      window.bbLive.destLng     = s.destLng;
+          if (s.routePoints)  window.bbLive.routePoints = s.routePoints;
+        } else {
+          window.bbLive.active   = false;
+          window.bbLive.riderLat = null;
+          window.bbLive.riderLng = null;
+        }
+        updateLiveBtn();
+        if (liveMapOpen) custMapRefresh();
+      } catch(e) {}
+    });
   </script>
 
 
@@ -1801,6 +1846,8 @@
       window.bbLive.active = true;
       window.bbLive.riderLat = la;
       window.bbLive.riderLng = lo;
+      // Persist to localStorage for cross-tab real-time sync
+      try { localStorage.setItem('bbLiveState', JSON.stringify({active:true,riderLat:la,riderLng:lo,destLat:window.bbLive.destLat||null,destLng:window.bbLive.destLng||null,routePoints:window.bbLive.routePoints||null,ts:Date.now()})); } catch(e) {}
       custMapRefresh();
     }
 
@@ -1814,13 +1861,29 @@
       document.getElementById('bc-label').textContent='Live';
       document.getElementById('broadcast-bar').classList.add('visible');
       document.getElementById('bc-coords').textContent='Locating…';
+      let admLastGeocodedPos = null;
       admWatchId = navigator.geolocation.watchPosition(
-        pos => {
+        async pos => {
           const {latitude:la,longitude:lo,accuracy:ac} = pos.coords;
           riderLat=la; riderLng=lo;
-          document.getElementById('bc-coords').textContent=`${la.toFixed(5)}, ${lo.toFixed(5)} (±${Math.round(ac)}m)`;
+          document.getElementById('bc-coords').textContent=`Locating… (${la.toFixed(5)}, ${lo.toFixed(5)})`;
           admSetRider(la,lo);
           admUpdateBcLink(la,lo);
+          // Re-geocode only when moved >30m to avoid hammering the API
+          const movedFar = !admLastGeocodedPos ||
+            admHav(admLastGeocodedPos[0],admLastGeocodedPos[1],la,lo)*1000 > 30;
+          if (movedFar) {
+            admLastGeocodedPos = [la,lo];
+            try {
+              const res  = await fetch(`https://photon.komoot.io/reverse?lat=${la}&lon=${lo}&lang=en`);
+              const data = await res.json();
+              const p    = data.features?.[0]?.properties || {};
+              const name = p.name || p.street || p.suburb || p.neighbourhood || p.district || p.city || 'Current location';
+              document.getElementById('bc-coords').textContent=`${name} (${la.toFixed(5)}, ${lo.toFixed(5)})`;
+            } catch {
+              document.getElementById('bc-coords').textContent=`Current location (${la.toFixed(5)}, ${lo.toFixed(5)})`;
+            }
+          }
         },
         () => { document.getElementById('bc-coords').textContent='Location error'; },
         {enableHighAccuracy:true,timeout:15000,maximumAge:8000}
@@ -1836,6 +1899,7 @@
       riderLat=null; riderLng=null;
       window.bbLive.active = false;
       window.bbLive.riderLat = null; window.bbLive.riderLng = null;
+      try { localStorage.removeItem('bbLiveState'); } catch(e) {}
       custMapRefresh();
     }
     function admUpdateBcLink(la,lo) {
@@ -1957,7 +2021,7 @@
       const el=document.getElementById(`sh-${wp.id}`); if(!el) return;
       const locPart=riderLat?`\n📍 Rider live location: https://www.google.com/maps?q=${riderLat},${riderLng}`:'';
       const msg=encodeURIComponent(`🛵 *Brainbox Store – Your Delivery is On the Way!*\n\n📦 Delivering to: ${wp.name}\n📏 Distance: ${wp.km.toFixed(1)} km\n⏱️ Est. arrival: ${admArr(wp.eta)}${locPart}\n\nThank you for choosing Brainbox Store! 💙`);
-      el.href=`https://wa.me/${CFG.wa}?text=${msg}`;
+      el.href=`https://wa.me/?text=${msg}`;
     }
 
     const admRenderAll = () => { admRenderWP(); admRenderActive(); };
