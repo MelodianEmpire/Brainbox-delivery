@@ -985,38 +985,13 @@
       <div class="sched-modal-body">
         <!-- Date -->
         <div class="sched-section-lbl">Preferred date</div>
-        <div class="sched-chips">
-          <button class="sched-chip on" data-sday="today" onclick="spSelectDay(this,'today')">Today</button>
-          <button class="sched-chip" data-sday="tomorrow" onclick="spSelectDay(this,'tomorrow')">Tomorrow</button>
-          <button class="sched-chip" data-sday="custom" onclick="spSelectDay(this,'custom')">📅 Pick a date</button>
-        </div>
-        <div id="sched-custom-date-wrap">
-          <input type="date" id="sched-date-inp" style="width:100%;background:#f1f5f9;border:1.5px solid #e2e8f0;color:#0f172a;font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;border-radius:10px;outline:none;">
-        </div>
+        <input type="date" id="sched-date-inp" style="width:100%;background:#f1f5f9;border:1.5px solid #e2e8f0;color:#0f172a;font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;border-radius:12px;outline:none;margin-bottom:16px;">
+
         <div class="sched-divider"></div>
 
-        <!-- Time — NOW is top prominent chip -->
+        <!-- Time -->
         <div class="sched-section-lbl">Preferred time</div>
-        <div class="sched-time-grid">
-          <button class="sched-time-tile now-tile" data-sslot="now" onclick="spSelectTime(this,'now')">
-            <strong>⚡ Now — ASAP</strong>I need it urgently
-          </button>
-          <button class="sched-time-tile on" data-sslot="morning" onclick="spSelectTime(this,'morning')">
-            <strong>🌅 Morning</strong>8 AM – 12 PM
-          </button>
-          <button class="sched-time-tile" data-sslot="afternoon" onclick="spSelectTime(this,'afternoon')">
-            <strong>☀️ Afternoon</strong>12 PM – 4 PM
-          </button>
-          <button class="sched-time-tile" data-sslot="evening" onclick="spSelectTime(this,'evening')">
-            <strong>🌇 Evening</strong>4 PM – 7 PM
-          </button>
-          <button class="sched-time-tile" data-sslot="custom" onclick="spSelectTime(this,'custom')">
-            <strong>🕐 Specific time</strong>I'll choose
-          </button>
-        </div>
-        <div id="sched-custom-time-wrap">
-          <input type="time" id="sched-time-inp" style="width:100%;background:#f1f5f9;border:1.5px solid #e2e8f0;color:#0f172a;font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;border-radius:10px;outline:none;">
-        </div>
+        <input type="time" id="sched-time-inp" style="width:100%;background:#f1f5f9;border:1.5px solid #e2e8f0;color:#0f172a;font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;border-radius:12px;outline:none;margin-bottom:16px;">
 
         <!-- Confirm -->
         <button class="sched-confirm" id="sched-confirm-btn" onclick="schedConfirm()">
@@ -1142,6 +1117,67 @@
   <!-- ════════ LEAFLET JS (loaded once) ════════ -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
+  <!-- ════════ FIREBASE (real-time cross-device tracking) ════════ -->
+  <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-app-compat.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-database-compat.min.js"></script>
+  <script>
+    // ┌─────────────────────────────────────────────────────────────┐
+    // │  PASTE YOUR FIREBASE CONFIG HERE                            │
+    // │  console.firebase.google.com → Project Settings → Your Apps │
+    // └─────────────────────────────────────────────────────────────┘
+    const FB_CONFIG = {
+      apiKey:            "AIzaSyCfYfMwg8vNCPNbIk_f6TyXGheb_45l0Z8",
+      authDomain:        "brainbox-delivery-track.firebaseapp.com",
+      databaseURL:       "https://brainbox-delivery-track-default-rtdb.firebaseio.com",
+      projectId:         "brainbox-delivery-track",
+      storageBucket:     "brainbox-delivery-track.firebasestorage.app",
+      messagingSenderId: "131337159470",
+      appId:             "1:131337159470:web:a2e030b450a4aefd78b0bf"
+    };
+
+    let fbDB = null;
+    let fbLiveRef = null;
+
+    function fbInit() {
+      if (typeof firebase === 'undefined') {
+        console.warn('⚠️ Firebase SDK failed to load — using localStorage fallback only');
+        return;
+      }
+      try {
+        if (!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+        fbDB = firebase.database();
+        fbLiveRef = fbDB.ref('brainboxstore/live');
+        console.log('✅ Firebase connected');
+      } catch(e) {
+        console.warn('⚠️ Firebase init failed', e);
+      }
+    }
+
+    // Write rider position to Firebase (called by admin)
+    function fbWrite(data) {
+      if (!fbLiveRef) return;
+      fbLiveRef.set({ ...data, ts: firebase.database.ServerValue.TIMESTAMP })
+        .catch(e => console.warn('Firebase write failed', e));
+    }
+
+    // Clear rider position (called when broadcast stops)
+    function fbClear() {
+      if (!fbLiveRef) return;
+      fbLiveRef.set({ active: false, ts: firebase.database.ServerValue.TIMESTAMP })
+        .catch(e => console.warn('Firebase clear failed', e));
+    }
+
+    // Listen for rider position changes (called by customer side)
+    function fbListen(callback) {
+      if (!fbLiveRef) return;
+      fbLiveRef.on('value', snapshot => {
+        const s = snapshot.val();
+        if (s) callback(s);
+      });
+    }
+
+    fbInit();
+  </script>
 
   <!-- ════════ PUBLIC PAGE SCRIPT ════════ -->
   <script>
@@ -1472,18 +1508,15 @@
     /* ══════════════════════════════
        SCHEDULE POPUP
     ══════════════════════════════ */
-    let spDay = 'today', spSlot = 'morning', spMode = 'delivery';
+    let spMode = 'delivery';
 
     function openSchedPopup(mode) {
       spMode = mode || 'delivery';
-      // Update confirm button label
       const lbl = document.getElementById('sched-confirm-label');
-      if (lbl) lbl.textContent = spMode === 'pickup'
-        ? 'Confirm & Continue to WhatsApp'
-        : 'Confirm & Send to WhatsApp';
+      if (lbl) lbl.textContent = 'Confirm & Continue to WhatsApp';
       document.getElementById('sched-overlay').classList.add('open');
       document.body.style.overflow = 'hidden';
-      // Set date input min
+      // Set today as minimum selectable date
       const today = new Date();
       const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
       document.getElementById('sched-date-inp').min = dateStr;
@@ -1499,52 +1532,20 @@
       if (e.target === this) closeSchedPopup();
     });
 
-    function spSelectDay(btn, day) {
-      document.querySelectorAll('[data-sday]').forEach(c => c.classList.remove('on'));
-      btn.classList.add('on');
-      spDay = day;
-      document.getElementById('sched-custom-date-wrap').style.display = day === 'custom' ? 'block' : 'none';
-    }
-
-    function spSelectTime(btn, slot) {
-      document.querySelectorAll('[data-sslot]').forEach(c => c.classList.remove('on'));
-      btn.classList.add('on');
-      spSlot = slot;
-      document.getElementById('sched-custom-time-wrap').style.display = slot === 'custom' ? 'block' : 'none';
-    }
+    function spSelectDay() {}  // no-op, kept so no reference errors
+    function spSelectTime() {} // no-op
 
     function spGetScheduleText() {
-      // Date
-      let dateLabel;
-      if (spDay === 'today') {
-        const d = new Date();
-        dateLabel = `Today (${d.toLocaleDateString('en-NG', {weekday:'long',day:'numeric',month:'short'})})`;
-      } else if (spDay === 'tomorrow') {
-        const d = new Date(); d.setDate(d.getDate()+1);
-        dateLabel = `Tomorrow (${d.toLocaleDateString('en-NG', {weekday:'long',day:'numeric',month:'short'})})`;
-      } else {
-        const v = document.getElementById('sched-date-inp').value;
-        dateLabel = v ? new Date(v+'T00:00:00').toLocaleDateString('en-NG',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) : 'Date not specified';
-      }
-      // Time
-      let timeLabel;
-      if (spSlot === 'now') {
-        timeLabel = '⚡ ASAP — Urgent request';
-      } else if (spSlot === 'morning') {
-        timeLabel = 'Morning (8 AM – 12 PM)';
-      } else if (spSlot === 'afternoon') {
-        timeLabel = 'Afternoon (12 PM – 4 PM)';
-      } else if (spSlot === 'evening') {
-        timeLabel = 'Evening (4 PM – 7 PM)';
-      } else {
-        const v = document.getElementById('sched-time-inp').value;
-        if (v) {
-          const [hh,mm] = v.split(':').map(Number);
-          const ap = hh>=12?'PM':'AM', h12 = hh%12||12;
-          timeLabel = `${h12}:${String(mm).padStart(2,'0')} ${ap}`;
-        } else {
-          timeLabel = 'Time not specified';
-        }
+      const dv = document.getElementById('sched-date-inp').value;
+      const tv = document.getElementById('sched-time-inp').value;
+      const dateLabel = dv
+        ? new Date(dv + 'T00:00:00').toLocaleDateString('en-NG', {weekday:'long', day:'numeric', month:'long', year:'numeric'})
+        : 'Date not specified';
+      let timeLabel = 'Time not specified';
+      if (tv) {
+        const [hh, mm] = tv.split(':').map(Number);
+        const ap = hh >= 12 ? 'PM' : 'AM', h12 = hh % 12 || 12;
+        timeLabel = `${h12}:${String(mm).padStart(2,'0')} ${ap}`;
       }
       return { dateLabel, timeLabel };
     }
@@ -1686,51 +1687,48 @@
       setTimeout(() => custMap && custMap.invalidateSize(), 120);
     }
 
-    // Poll every 4s — reads localStorage so customer tabs stay in sync with admin
+    // Helper: apply incoming live state to window.bbLive and refresh UI
+    function applyLiveState(s) {
+      if (!s) return;
+      if (s.active && s.riderLat) {
+        window.bbLive.active     = true;
+        window.bbLive.riderLat   = s.riderLat;
+        window.bbLive.riderLng   = s.riderLng;
+        if (s.destLat)      window.bbLive.destLat     = s.destLat;
+        if (s.destLng)      window.bbLive.destLng     = s.destLng;
+        if (s.routePoints)  window.bbLive.routePoints = s.routePoints;
+      } else if (s.active === false) {
+        window.bbLive.active     = false;
+        window.bbLive.riderLat   = null;
+        window.bbLive.riderLng   = null;
+        window.bbLive.routePoints = null;
+      }
+      updateLiveBtn();
+      if (liveMapOpen) custMapRefresh();
+    }
+
+    // Firebase real-time listener (cross-device — primary)
+    fbListen(applyLiveState);
+
+    // localStorage storage event (same-device, cross-tab — fallback)
+    window.addEventListener('storage', function(e) {
+      if (e.key !== 'bbLiveState') return;
+      try { applyLiveState(e.newValue ? JSON.parse(e.newValue) : { active: false }); } catch(e) {}
+    });
+
+    // Poll every 5s: reads localStorage as final fallback for same-device
     setInterval(() => {
       try {
         const raw = localStorage.getItem('bbLiveState');
         if (raw) {
           const s = JSON.parse(raw);
-          if (s && s.active && s.ts && (Date.now() - s.ts < 30000)) {
-            window.bbLive.active     = true;
-            window.bbLive.riderLat   = s.riderLat;
-            window.bbLive.riderLng   = s.riderLng;
-            if (s.destLat)      window.bbLive.destLat     = s.destLat;
-            if (s.destLng)      window.bbLive.destLng     = s.destLng;
-            if (s.routePoints)  window.bbLive.routePoints = s.routePoints;
-          } else {
-            window.bbLive.active   = false;
-            window.bbLive.riderLat = null;
-            window.bbLive.riderLng = null;
-          }
+          // Only apply if recent (< 30s) and Firebase hasn't already set active
+          if (s && s.ts && (Date.now() - s.ts < 30000)) applyLiveState(s);
         }
       } catch(e) {}
       updateLiveBtn();
       if (liveMapOpen) custMapRefresh();
-    }, 4000);
-
-    // Instant cross-tab update via storage event
-    window.addEventListener('storage', function(e) {
-      if (e.key !== 'bbLiveState') return;
-      try {
-        const s = e.newValue ? JSON.parse(e.newValue) : { active: false };
-        if (s && s.active && s.riderLat) {
-          window.bbLive.active     = true;
-          window.bbLive.riderLat   = s.riderLat;
-          window.bbLive.riderLng   = s.riderLng;
-          if (s.destLat)      window.bbLive.destLat     = s.destLat;
-          if (s.destLng)      window.bbLive.destLng     = s.destLng;
-          if (s.routePoints)  window.bbLive.routePoints = s.routePoints;
-        } else {
-          window.bbLive.active   = false;
-          window.bbLive.riderLat = null;
-          window.bbLive.riderLng = null;
-        }
-        updateLiveBtn();
-        if (liveMapOpen) custMapRefresh();
-      } catch(e) {}
-    });
+    }, 5000);
   </script>
 
 
@@ -1846,8 +1844,18 @@
       window.bbLive.active = true;
       window.bbLive.riderLat = la;
       window.bbLive.riderLng = lo;
-      // Persist to localStorage for cross-tab real-time sync
-      try { localStorage.setItem('bbLiveState', JSON.stringify({active:true,riderLat:la,riderLng:lo,destLat:window.bbLive.destLat||null,destLng:window.bbLive.destLng||null,routePoints:window.bbLive.routePoints||null,ts:Date.now()})); } catch(e) {}
+      const livePayload = {
+        active: true,
+        riderLat: la, riderLng: lo,
+        destLat:  window.bbLive.destLat  || null,
+        destLng:  window.bbLive.destLng  || null,
+        routePoints: window.bbLive.routePoints || null,
+        ts: Date.now()
+      };
+      // Firebase (cross-device, primary)
+      fbWrite(livePayload);
+      // localStorage (same-device fallback)
+      try { localStorage.setItem('bbLiveState', JSON.stringify(livePayload)); } catch(e) {}
       custMapRefresh();
     }
 
@@ -1899,6 +1907,9 @@
       riderLat=null; riderLng=null;
       window.bbLive.active = false;
       window.bbLive.riderLat = null; window.bbLive.riderLng = null;
+      window.bbLive.routePoints = null;
+      // Clear Firebase (cross-device) and localStorage (same-device)
+      fbClear();
       try { localStorage.removeItem('bbLiveState'); } catch(e) {}
       custMapRefresh();
     }
