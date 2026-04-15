@@ -2082,10 +2082,21 @@
       custMapInit = true;
       // Store marker
       if (!_custStoreMarker && leafletMap) {
+        const _storeHtml = '<div style="position:relative;width:46px;height:52px;">'
+          + '<svg width="46" height="50" viewBox="0 0 46 50" fill="none" xmlns="http://www.w3.org/2000/svg">'
+          + '<path d="M2 22 L23 6 L44 22 Z" fill="#1d4ed8" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>'
+          + '<rect x="5" y="21" width="36" height="26" rx="2" fill="#2563eb" stroke="#fff" stroke-width="1.5"/>'
+          + '<rect x="8" y="25" width="9" height="8" rx="1" fill="#93c5fd"/>'
+          + '<rect x="29" y="25" width="9" height="8" rx="1" fill="#93c5fd"/>'
+          + '<rect x="17" y="31" width="12" height="16" rx="1" fill="#bfdbfe"/>'
+          + '<line x1="17" y1="39" x2="29" y2="39" stroke="#3b82f6" stroke-width="1"/>'
+          + '<line x1="23" y1="31" x2="23" y2="47" stroke="#3b82f6" stroke-width="1"/>'
+          + '</svg>'
+          + '<div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);width:22px;height:22px;border-radius:50%;overflow:hidden;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(59,130,246,.5);">'
+          + '<img src="' + _CUST_LOGO + '" style="width:100%;height:100%;object-fit:cover;display:block;">'
+          + '</div></div>';
         const storeIco = L.divIcon({
-          className:'',
-          html:'<div style="width:14px;height:14px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(59,130,246,.5);"></div>',
-          iconSize:[14,14], iconAnchor:[7,7]
+          className:'', html: _storeHtml, iconSize:[46,52], iconAnchor:[23,52]
         });
         _custStoreMarker = L.marker([CONFIG.businessLat, CONFIG.businessLng], {icon:storeIco})
           .addTo(leafletMap)
@@ -2111,6 +2122,12 @@
       _custInitialZoomDone = false;
       _custLastRiderLat = null; _custLastRiderLng = null;
       _custRouteDestKey = null; _custRouteFetching = false;
+      _stopDrift(); _custRouteRawCoords = null; _custRouteProgress = 0;
+      _custBearingHistory = []; _custDisplayBearing = 0; _custLastUpdateTime = 0;
+      _custLastMoveTime = 0; _custReverseStart = null; _custIsReversing = false;
+      _custDominantTilt = 0; _custEstSpeedKmh = 0;
+      if (_custLastAnimIntvl) { clearInterval(_custLastAnimIntvl); _custLastAnimIntvl = null; }
+      _custWasFast = false;
     }
 
     let _custStoreMarker = null;
@@ -2122,6 +2139,131 @@
     let _custFullRouteLyr  = null;
     let _custPanTimer = null;
 
+    /* ══ Smart rider animation — module-level state ══ */
+    const _CUST_LOGO = 'data:image/webp;base64,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';
+    let _custRouteRawCoords = null;   // [[lat,lng],...] from OSRM
+    let _custRouteProgress  = 0;      // float index along route
+    let _custBearingHistory = [];     // [{b,ts},...] last ~3s
+    let _custDisplayBearing = 0;
+    let _custLastUpdateTime = 0;
+    let _custLastMoveTime   = 0;
+    let _custDriftInterval  = null;
+    let _custDriftTimer     = null;
+    let _custReverseStart   = null;
+    let _custIsReversing    = false;
+    let _custDominantTilt   = 0;      // +1 right lean, -1 left lean
+    let _custEstSpeedKmh    = 0;
+    let _custLastAnimIntvl  = null;
+    let _custWasFast         = false;
+    const _TILT_MAX         = 15;
+    const _BEARING_SMOOTH_MS = 3200;
+    const _REVERSE_MS        = 8000;
+    const _FAST_KMH          = 12;   // above = show biker icon
+
+    /* ── Snap a lat/lng to nearest point on polyline ── */
+    function _snapToRoute(lat, lng, coords) {
+      if (!coords || coords.length < 2) return null;
+      let best = { distSq: Infinity, lat, lng, seg: 0, t: 0 };
+      for (let i = 0; i < coords.length - 1; i++) {
+        const [a0,a1] = coords[i], [b0,b1] = coords[i+1];
+        const dx = b0-a0, dy = b1-a1;
+        const lenSq = dx*dx + dy*dy;
+        let t = lenSq > 0 ? ((lat-a0)*dx + (lng-a1)*dy) / lenSq : 0;
+        t = Math.max(0, Math.min(1, t));
+        const px = a0+t*dx, py = a1+t*dy;
+        const d = (lat-px)**2 + (lng-py)**2;
+        if (d < best.distSq) best = { distSq:d, lat:px, lng:py, seg:i, t };
+      }
+      return { ...best, distM: Math.sqrt(best.distSq)*111000 };
+    }
+
+    /* ── Road bearing at a given segment position ── */
+    function _roadBearingAt(coords, seg, t) {
+      const i = Math.min(seg, coords.length-2);
+      return _bearing(coords[i][0], coords[i][1], coords[Math.min(i+1,coords.length-1)][0], coords[Math.min(i+1,coords.length-1)][1]);
+    }
+
+    /* ── Circular-mean bearing from history ── */
+    function _smoothBearing(nb) {
+      const now = Date.now();
+      _custBearingHistory.push({ b: nb, ts: now });
+      _custBearingHistory = _custBearingHistory.filter(x => now - x.ts < _BEARING_SMOOTH_MS);
+      if (!_custBearingHistory.length) return nb;
+      let s = 0, c = 0;
+      _custBearingHistory.forEach(x => { s += Math.sin(x.b*Math.PI/180); c += Math.cos(x.b*Math.PI/180); });
+      return (Math.atan2(s,c)*180/Math.PI+360)%360;
+    }
+
+    /* ── Apply smoothed+clamped rotation to rider shell ── */
+    function _applyRotation(roadBearing, tiltDeg) {
+      if (!custRiderMk) return;
+      const el = custRiderMk.getElement(); if (!el) return;
+      const shell = el.querySelector('.cust-rider-shell'); if (!shell) return;
+      const clamped = Math.max(-_TILT_MAX, Math.min(_TILT_MAX, tiltDeg));
+      shell.style.transform = 'rotate(' + (roadBearing + clamped) + 'deg)';
+      _custDisplayBearing = roadBearing + clamped;
+    }
+
+    /* ── Very slow ghost drift forward along route ── */
+    function _startDrift() {
+      if (_custDriftInterval) return;
+      _custDriftInterval = setInterval(() => {
+        if (!custRiderMk || !_custRouteRawCoords || _custRouteRawCoords.length < 2) return;
+        _custRouteProgress = Math.min(_custRouteProgress + 0.0016, _custRouteRawCoords.length - 1.01);
+        const idx = Math.min(Math.floor(_custRouteProgress), _custRouteRawCoords.length - 2);
+        const t   = _custRouteProgress - idx;
+        const [a0,a1] = _custRouteRawCoords[idx];
+        const [b0,b1] = _custRouteRawCoords[Math.min(idx+1, _custRouteRawCoords.length-1)];
+        custRiderMk.setLatLng([a0 + t*(b0-a0), a1 + t*(b1-a1)]);
+      }, 950);
+    }
+
+    function _stopDrift() {
+      if (_custDriftInterval) { clearInterval(_custDriftInterval); _custDriftInterval = null; }
+      if (_custDriftTimer)    { clearTimeout(_custDriftTimer);     _custDriftTimer = null; }
+    }
+
+    /* ── Build rider icon HTML based on speed ── */
+    function _riderIconHtml(isFast) {
+      const badge = '<div style="position:absolute;top:-5px;right:-6px;width:19px;height:19px;border-radius:50%;overflow:hidden;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);z-index:2;"><img src="' + _CUST_LOGO + '" style="width:100%;height:100%;object-fit:cover;display:block;"></div>';
+      if (isFast) {
+        return '<div style="position:relative;width:56px;height:46px;">'
+          + '<svg width="56" height="46" viewBox="0 0 56 46" fill="none" xmlns="http://www.w3.org/2000/svg">'
+          + '<circle cx="11" cy="37" r="7.5" stroke="#1d4ed8" stroke-width="2.5" fill="none"/>'
+          + '<circle cx="11" cy="37" r="2" fill="#2563eb"/>'
+          + '<circle cx="45" cy="37" r="7.5" stroke="#1d4ed8" stroke-width="2.5" fill="none"/>'
+          + '<circle cx="45" cy="37" r="2" fill="#2563eb"/>'
+          + '<path d="M11 37 L27 17 L45 37" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>'
+          + '<path d="M27 17 L39 24 L45 37" stroke="#2563eb" stroke-width="2" stroke-linecap="round" fill="none"/>'
+          + '<line x1="27" y1="17" x2="30" y2="30" stroke="#1d4ed8" stroke-width="2.5" stroke-linecap="round"/>'
+          + '<line x1="34" y1="16" x2="42" y2="16" stroke="#1d4ed8" stroke-width="3" stroke-linecap="round"/>'
+          + '<path d="M30 27 Q34 16 40 13 Q46 10 46 16 Q46 21 38 22 L35 25 Z" fill="#2563eb"/>'
+          + '<line x1="35" y1="18" x2="41" y2="16" stroke="#1e40af" stroke-width="2.5" stroke-linecap="round"/>'
+          + '<ellipse cx="39" cy="9" rx="7" ry="5.5" fill="#1d4ed8" stroke="#93c5fd" stroke-width="1"/>'
+          + '<path d="M32 9 Q39 4.5 46 9" stroke="#60a5fa" stroke-width="1" fill="none"/>'
+          + '<path d="M33 11.5 L45 11.5" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round" opacity=".85"/>'
+          + '<line x1="0" y1="20" x2="7" y2="20" stroke="#93c5fd" stroke-width="1.5" stroke-linecap="round" opacity=".65"/>'
+          + '<line x1="0" y1="24" x2="5" y2="24" stroke="#93c5fd" stroke-width="1" stroke-linecap="round" opacity=".4"/>'
+          + '<line x1="1" y1="28" x2="6" y2="28" stroke="#93c5fd" stroke-width="1" stroke-linecap="round" opacity=".3"/>'
+          + '</svg>'
+          + badge + '</div>';
+      } else {
+        return '<div style="position:relative;width:40px;height:54px;">'
+          + '<svg width="40" height="54" viewBox="0 0 40 54" fill="none" xmlns="http://www.w3.org/2000/svg">'
+          + '<circle cx="20" cy="8" r="6.5" fill="#2563eb" stroke="#93c5fd" stroke-width="1.5"/>'
+          + '<rect x="13" y="16" width="14" height="14" rx="3.5" fill="#2563eb"/>'
+          + '<path d="M13 20 Q7 24 6 31" stroke="#2563eb" stroke-width="4" stroke-linecap="round" fill="none"/>'
+          + '<path d="M27 20 Q31 20 34 23" stroke="#2563eb" stroke-width="4" stroke-linecap="round" fill="none"/>'
+          + '<path d="M15 30 Q12 39 10 48" stroke="#1d4ed8" stroke-width="4" stroke-linecap="round" fill="none"/>'
+          + '<path d="M25 30 Q28 39 30 48" stroke="#1d4ed8" stroke-width="4" stroke-linecap="round" fill="none"/>'
+          + '<rect x="32" y="18" width="8" height="8" rx="1.5" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>'
+          + '<line x1="32" y1="22" x2="40" y2="22" stroke="#3b82f6" stroke-width="1"/>'
+          + '<line x1="36" y1="18" x2="36" y2="26" stroke="#3b82f6" stroke-width="1"/>'
+          + '</svg>'
+          + badge + '</div>';
+      }
+    }
+
     /* Fetch road route rider→dest via OSRM and draw as the live remaining-route */
     async function custFetchRiderRoute(rLat, rLng, dLat, dLng) {
       if (_custRouteFetching) return;
@@ -2132,6 +2274,10 @@
         const data = await res.json();
         if (!data.routes?.[0]) throw new Error('no route');
         if (custRouteLyr && leafletMap) { leafletMap.removeLayer(custRouteLyr); custRouteLyr = null; }
+        // Store raw coords for snapping / drift
+        const coords = data.routes[0].geometry.coordinates; // [[lng,lat],...]
+        _custRouteRawCoords = coords.map(c => [c[1], c[0]]); // → [[lat,lng],...]
+        _custRouteProgress  = 0;
         custRouteLyr = L.geoJSON(data.routes[0].geometry, {
           style: { color:'#3b82f6', weight:5, opacity:0.88, lineCap:'round', lineJoin:'round' }
         }).addTo(leafletMap);
@@ -2165,21 +2311,73 @@
     }
 
     function _animateRider(fromLat, fromLng, toLat, toLng) {
-      const STEPS = 30, MS = 900;
-      const dLat = (toLat-fromLat)/STEPS, dLng = (toLng-fromLng)/STEPS;
-      _custLastBearing = _bearing(fromLat, fromLng, toLat, toLng);
-      // Rotate the shell div (not the badge) to face direction of travel
-      if (custRiderMk) {
-        const el = custRiderMk.getElement();
-        const shell = el && el.querySelector('.cust-rider-shell');
-        if (shell) shell.style.transform = `rotate(${_custLastBearing}deg)`;
+      _stopDrift();
+      const now = Date.now();
+      // ── Speed estimation ──
+      const distKm = haversine(fromLat, fromLng, toLat, toLng);
+      const dtSec  = Math.max(0.5, (now - (_custLastUpdateTime||now-2000)) / 1000);
+      _custEstSpeedKmh = (distKm / dtSec) * 3600;
+      _custLastUpdateTime = now;
+      _custLastMoveTime   = now;
+
+      // ── Raw bearing ──
+      const rawBearing = _bearing(fromLat, fromLng, toLat, toLng);
+      const smoothed   = _smoothBearing(rawBearing);
+
+      // ── Reverse detection ──
+      const prevForward = _custLastBearing || smoothed;
+      const angDiff = Math.abs(((smoothed - prevForward + 540) % 360) - 180);
+      const goingBack = angDiff < 45; // within 45° of fully reversed
+      if (goingBack) {
+        if (!_custReverseStart) _custReverseStart = now;
+        if (now - _custReverseStart >= _REVERSE_MS) _custIsReversing = true;
+      } else {
+        _custReverseStart = null;
+        _custIsReversing  = false;
+        _custLastBearing  = smoothed;
       }
+
+      // ── Snap to route ──
+      let targetLat = toLat, targetLng = toLng;
+      let roadBearing = smoothed;
+      if (_custRouteRawCoords && _custRouteRawCoords.length > 1) {
+        const snap = _snapToRoute(toLat, toLng, _custRouteRawCoords);
+        if (snap && snap.distM < 120) {
+          targetLat   = snap.lat;
+          targetLng   = snap.lng;
+          roadBearing = _roadBearingAt(_custRouteRawCoords, snap.seg, snap.t);
+          _custRouteProgress = snap.seg + snap.t;
+          // Determine dominant tilt from GPS offset relative to road
+          const snapBearingFromGPS = _bearing(snap.lat, snap.lng, toLat, toLng);
+          const gpsDiff = ((snapBearingFromGPS - roadBearing + 540) % 360) - 180;
+          // Smooth the tilt side: only commit after consistent signal
+          const newTilt = gpsDiff > 1 ? 1 : gpsDiff < -1 ? -1 : 0;
+          // Blend slowly: 90% old + 10% new to avoid jitter
+          _custDominantTilt = _custDominantTilt * 0.88 + newTilt * 0.12;
+        }
+      }
+
+      // ── Tilt angle ──
+      let tiltDeg = _custDominantTilt * 9;
+      if (_custIsReversing) tiltDeg = _custDominantTilt * _TILT_MAX;
+
+      // Use forward bearing even when reversing (face forward, drift back)
+      _applyRotation(_custIsReversing ? _custLastBearing : roadBearing, tiltDeg);
+
+      // ── Animate marker ──
+      const STEPS = 28, MS = 880;
+      const dLat = (targetLat - fromLat) / STEPS;
+      const dLng = (targetLng - fromLng) / STEPS;
       let step = 0;
-      const interval = setInterval(() => {
+      if (_custLastAnimIntvl) clearInterval(_custLastAnimIntvl);
+      _custLastAnimIntvl = setInterval(() => {
         step++;
-        if (custRiderMk) custRiderMk.setLatLng([fromLat+dLat*step, fromLng+dLng*step]);
-        if (step >= STEPS) clearInterval(interval);
-      }, MS/STEPS);
+        if (custRiderMk) custRiderMk.setLatLng([fromLat + dLat*step, fromLng + dLng*step]);
+        if (step >= STEPS) { clearInterval(_custLastAnimIntvl); _custLastAnimIntvl = null; }
+      }, MS / STEPS);
+
+      // ── Schedule drift after 6s of no new GPS updates ──
+      _custDriftTimer = setTimeout(() => _startDrift(), 6200);
     }
 
     function custMapRefresh() {
@@ -2187,18 +2385,16 @@
       updateLiveBtn();
       if (!live.active || !live.riderLat || !custMapInit || !liveMapOpen || !leafletMap) return;
 
-      const LOGO_SRC = 'data:image/webp;base64,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';
+      const LOGO_SRC = _CUST_LOGO;
 
-      // Rider icon: logo circle + 📦 badge top-left, rotates with bearing
+      // Rider icon: person (slow) or biker (fast), updates with speed
+      const isFast = _custEstSpeedKmh >= _FAST_KMH;
+      const iconW = isFast ? 56 : 40, iconH = isFast ? 46 : 54;
+      const iconAx = isFast ? [28,23] : [20,27];
       const rIco = L.divIcon({
         className:'',
-        html:`<div style="position:relative;width:40px;height:40px;">
-          <div class="cust-rider-shell" style="width:40px;height:40px;border-radius:50%;overflow:hidden;border:3px solid #fff;box-shadow:0 2px 14px rgba(0,0,0,.4);transition:transform 0.7s cubic-bezier(.4,0,.2,1);">
-            <img src="${LOGO_SRC}" style="width:100%;height:100%;object-fit:cover;" alt="rider">
-          </div>
-          <div style="position:absolute;top:-4px;left:-4px;font-size:14px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));">📦</div>
-        </div>`,
-        iconSize:[40,40], iconAnchor:[20,20]
+        html:'<div class="cust-rider-shell" style="display:inline-block;transition:transform 0.85s cubic-bezier(.4,0,.2,1);transform-origin:center center;">' + _riderIconHtml(isFast) + '</div>',
+        iconSize:[iconW,iconH], iconAnchor:iconAx
       });
 
       // ── Place or animate rider ──
@@ -2206,11 +2402,17 @@
         custRiderMk = L.marker([live.riderLat, live.riderLng], { icon:rIco, zIndexOffset:1000 })
           .addTo(leafletMap)
           .bindPopup('<div style="font-family:DM Sans,sans-serif;font-size:12px;font-weight:600;">\u{1F6F5} Rider</div>');
-      } else if (_custLastRiderLat !== null &&
-                 (_custLastRiderLat !== live.riderLat || _custLastRiderLng !== live.riderLng)) {
-        _animateRider(_custLastRiderLat, _custLastRiderLng, live.riderLat, live.riderLng);
+        _custLastUpdateTime = Date.now();
       } else {
-        custRiderMk.setLatLng([live.riderLat, live.riderLng]);
+        // Update icon if speed class changed (walking ↔ biking)
+        if (isFast !== _custWasFast) { custRiderMk.setIcon(rIco); _custWasFast = isFast; }
+        if (_custLastRiderLat !== null &&
+            (_custLastRiderLat !== live.riderLat || _custLastRiderLng !== live.riderLng)) {
+          _animateRider(_custLastRiderLat, _custLastRiderLng, live.riderLat, live.riderLng);
+        } else {
+          // No position change — drift continues if started; mark update time
+          _custLastUpdateTime = Date.now();
+        }
       }
       _custLastRiderLat = live.riderLat;
       _custLastRiderLng = live.riderLng;
@@ -2810,7 +3012,17 @@
         _custInitialZoomDone = false; // trigger re-zoom for new destination
         admDrawRoute(nextActive.lat, nextActive.lng);
       }
-      if(!admActive().length&&admTimerTick){clearInterval(admTimerTick);admTimerTick=null;}
+      // Auto-start next waypoint if no active deliveries remain
+      if (!admActive().length) {
+        if (admTimerTick) { clearInterval(admTimerTick); admTimerTick = null; }
+        const firstPending = admPlanned()[0];
+        if (firstPending) {
+          setTimeout(() => {
+            admToast('\u23E9 Auto-starting next delivery to "' + firstPending.name + '"');
+            admStartDelivery(firstPending.id);
+          }, 600);
+        }
+      }
     }
     function admRemoveWP(id) {
       const idx=admWPs.findIndex(w=>w.id===id); if(idx<0) return;
