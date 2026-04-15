@@ -1351,10 +1351,10 @@
               <div class="sel-stat"><div class="sel-stat-v" id="sel-eta"></div><div class="sel-stat-l">ETA</div></div>
             </div>
             <div class="sel-actions">
-              <a class="btn-dir" id="sel-dir" href="#" target="_blank" rel="noopener">
+              <button class="btn-dir" id="sel-dir">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
                 Directions
-              </a>
+              </button>
               <button class="btn-awp" id="btn-add-wp">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add Waypoint
@@ -1391,6 +1391,54 @@
       Mark as Delivered ✓
     </button>
     <button class="arr-btn-skip" id="arr-btn-skip">Not yet — still on the way</button>
+  </div>
+
+  <!-- ════ HEARTBEAT PAUSE OVERLAY ════ -->
+  <!-- Shown to customers when admin has been offline > 3 hours -->
+  <div id="hb-pause-overlay" style="display:none;position:fixed;inset:0;z-index:19999;background:rgba(15,23,42,0.88);backdrop-filter:blur(8px);align-items:center;justify-content:center;flex-direction:column;gap:18px;">
+    <div style="text-align:center;padding:32px 28px;max-width:340px;">
+      <div style="font-size:48px;margin-bottom:14px;">⏸️</div>
+      <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#e2e8f0;margin-bottom:8px;">Live Stream Paused</div>
+      <div style="font-size:14px;color:#94a3b8;line-height:1.7;margin-bottom:20px;">The admin is currently offline. Live tracking has been paused and will resume automatically when they come back online.</div>
+      <div id="hb-pause-timer" style="font-family:'DM Mono',monospace;font-size:13px;color:#60a5fa;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);padding:8px 16px;border-radius:100px;display:inline-block;">Waiting for admin…</div>
+    </div>
+  </div>
+
+  <!-- ════ ADMIN LOGIN — WAYPOINTS OVERVIEW MODAL ════ -->
+  <!-- Shown immediately after admin logs in, summarises all active waypoints -->
+  <div id="wp-overview-overlay" style="display:none;position:fixed;inset:0;z-index:15000;background:rgba(8,15,28,0.92);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:20px;">
+    <div id="wp-overview-modal" style="width:100%;max-width:440px;background:#0d1e35;border:1px solid #1e3a5f;border-radius:24px;overflow:hidden;box-shadow:0 40px 80px rgba(0,0,0,0.6);max-height:90vh;display:flex;flex-direction:column;">
+      <!-- Header -->
+      <div style="padding:20px 20px 14px;border-bottom:1px solid #1e3a5f;display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;">
+          <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:#e2e8f0;margin-bottom:3px;">👋 Welcome back, Admin</div>
+          <div style="font-size:12px;color:#64748b;" id="wpo-subtitle">Here are all your active waypoints</div>
+        </div>
+        <button id="wpo-close-btn" style="width:32px;height:32px;border-radius:8px;background:none;border:1.5px solid #1e3a5f;color:#64748b;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;" title="Close">✕</button>
+      </div>
+      <!-- Stats bar -->
+      <div style="display:flex;gap:0;border-bottom:1px solid #1e3a5f;">
+        <div style="flex:1;padding:12px;text-align:center;border-right:1px solid #1e3a5f;">
+          <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:#3b82f6;" id="wpo-planned-count">0</div>
+          <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-top:2px;">Planned</div>
+        </div>
+        <div style="flex:1;padding:12px;text-align:center;border-right:1px solid #1e3a5f;">
+          <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:#f59e0b;" id="wpo-active-count">0</div>
+          <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-top:2px;">In Transit</div>
+        </div>
+        <div style="flex:1;padding:12px;text-align:center;">
+          <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:#10b981;" id="wpo-total-fee">₦0</div>
+          <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-top:2px;">Total Fees</div>
+        </div>
+      </div>
+      <!-- Waypoint list (scrollable) -->
+      <div id="wpo-list" style="overflow-y:auto;flex:1;padding:12px;"></div>
+      <!-- Footer actions -->
+      <div style="padding:14px 16px;border-top:1px solid #1e3a5f;display:flex;gap:8px;">
+        <button id="wpo-clear-all-btn" style="flex:1;padding:10px;border-radius:10px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#ef4444;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;" onmouseover="this.style.background='rgba(239,68,68,0.2)'" onmouseout="this.style.background='rgba(239,68,68,0.1)'">🗑 Clear All</button>
+        <button id="wpo-go-btn" style="flex:2;padding:10px;border-radius:10px;background:#3b82f6;border:none;color:#fff;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:filter .15s;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter='brightness(1)'">Go to Dashboard →</button>
+      </div>
+    </div>
   </div>
 
 
@@ -1458,6 +1506,77 @@
     }
 
     fbInit();
+
+    /* ══ HEARTBEAT SYSTEM (defined here so fbDB is accessible) ══
+       Admin pings every 30s. If silent > 3h, customer sees pause overlay. */
+    const HB_INTERVAL_MS  = 30 * 1000;
+    const HB_TIMEOUT_MS   = 3 * 60 * 60 * 1000;
+    let _hbSendInterval  = null;
+    let _hbWatchInterval = null;
+    let _hbPauseShowing  = false;
+    let _hbPauseTimer    = null;
+
+    function hbStartSending() {
+      if (_hbSendInterval) return;
+      hbPing();
+      _hbSendInterval = setInterval(hbPing, HB_INTERVAL_MS);
+    }
+    function hbStopSending() {
+      if (_hbSendInterval) { clearInterval(_hbSendInterval); _hbSendInterval = null; }
+      if (fbDB) { try { fbDB.ref('brainboxstore/heartbeat').set({ ts: 0, online: false }); } catch(e) {} }
+    }
+    function hbPing() {
+      const payload = { ts: Date.now(), online: true };
+      if (fbDB) { try { fbDB.ref('brainboxstore/heartbeat').set(payload); } catch(e) {} }
+      try { localStorage.setItem('bb_hb', JSON.stringify(payload)); } catch(e) {}
+    }
+    function hbStartWatching() {
+      if (fbDB) {
+        fbDB.ref('brainboxstore/heartbeat').on('value', snap => {
+          const data = snap.val();
+          _hbEvaluate(data && data.ts ? data.ts : 0, data && data.online);
+        });
+      }
+      _hbWatchInterval = setInterval(() => {
+        try {
+          const raw = localStorage.getItem('bb_hb');
+          if (!raw) return;
+          const d = JSON.parse(raw);
+          _hbEvaluate(d.ts || 0, d.online);
+        } catch(e) {}
+      }, 15000);
+    }
+    function _hbEvaluate(lastTs, isOnline) {
+      if (!lastTs) return;
+      const elapsed = Date.now() - lastTs;
+      if (!isOnline || elapsed > HB_TIMEOUT_MS) { _hbShowPause(); }
+      else { _hbHidePause(); }
+    }
+    function _hbShowPause() {
+      if (_hbPauseShowing) return;
+      _hbPauseShowing = true;
+      const ov = document.getElementById('hb-pause-overlay');
+      if (ov) ov.style.display = 'flex';
+      _hbPauseTimer = setInterval(() => {
+        try {
+          const raw = localStorage.getItem('bb_hb') || '{}';
+          const d = JSON.parse(raw);
+          const mins = Math.floor((Date.now() - (d.ts || Date.now())) / 60000);
+          const el = document.getElementById('hb-pause-timer');
+          if (el) el.textContent = mins < 60 ? `Offline for ${mins} min` : `Offline for ${Math.floor(mins/60)}h ${mins%60}m`;
+        } catch(e) {}
+      }, 60000);
+    }
+    function _hbHidePause() {
+      if (!_hbPauseShowing) return;
+      _hbPauseShowing = false;
+      const ov = document.getElementById('hb-pause-overlay');
+      if (ov) ov.style.display = 'none';
+      if (_hbPauseTimer) { clearInterval(_hbPauseTimer); _hbPauseTimer = null; }
+    }
+
+    // Start watching heartbeat on public page — pauses live stream if admin goes offline > 3h
+    setTimeout(hbStartWatching, 1200);
   </script>
 
   <!-- ════════ PUBLIC PAGE SCRIPT ════════ -->
@@ -2592,6 +2711,8 @@
         document.getElementById('login-screen').style.display='none';
         document.getElementById('dashboard').style.display='flex';
         admInitDash();
+        hbStartSending();   // ← start heartbeat pings
+        wpoShow();          // ← show waypoints overview on every login
       } else {
         err.textContent='Incorrect username or password.'; err.style.display='block';
       }
@@ -2599,6 +2720,111 @@
     document.getElementById('login-btn').addEventListener('click', tryLogin);
     document.getElementById('login-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') tryLogin(); });
     document.getElementById('login-user').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
+
+    /* ══════════════════════════════════════════════════════
+       WAYPOINTS OVERVIEW — shown to admin on every login
+       Displays all current waypoints with inline edit/delete
+    ══════════════════════════════════════════════════════ */
+    function wpoShow() {
+      admLoad(); // reload from storage
+      const all  = admWPs;
+      const planned  = all.filter(w => w.status === 'planned');
+      const active   = all.filter(w => w.status === 'active');
+      const totalFee = all.reduce((s, w) => s + (w.fee || 0), 0);
+
+      document.getElementById('wpo-planned-count').textContent = planned.length;
+      document.getElementById('wpo-active-count').textContent  = active.length;
+      document.getElementById('wpo-total-fee').textContent     = admNaira(totalFee);
+
+      const sub = all.length
+        ? `${all.length} waypoint${all.length>1?'s':''} waiting — review before starting`
+        : 'No waypoints yet — go add some from the dashboard';
+      document.getElementById('wpo-subtitle').textContent = sub;
+
+      _wpoRenderList();
+
+      const ov = document.getElementById('wp-overview-overlay');
+      ov.style.display = 'flex';
+    }
+
+    function wpoHide() {
+      document.getElementById('wp-overview-overlay').style.display = 'none';
+    }
+
+    function _wpoRenderList() {
+      const list = document.getElementById('wpo-list');
+      if (!admWPs.length) {
+        list.innerHTML = '<div style="text-align:center;padding:28px;color:#64748b;font-size:13px;">No waypoints yet. Close this and add some from the Search tab.</div>';
+        return;
+      }
+      list.innerHTML = '';
+      admWPs.forEach((wp, idx) => {
+        const isActive = wp.status === 'active';
+        const card = document.createElement('div');
+        card.id = `wpo-card-${wp.id}`;
+        card.style.cssText = 'background:#0a1929;border:1px solid #1e3a5f;border-radius:14px;padding:13px;margin-bottom:9px;';
+        card.innerHTML = `
+          <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;">
+            <div style="width:26px;height:26px;border-radius:8px;background:${isActive?'rgba(245,158,11,0.2)':'rgba(59,130,246,0.15)'};color:${isActive?'#f59e0b':'#60a5fa'};font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">${isActive?'▶':'#'+(idx+1)}</div>
+            <div style="flex:1;min-width:0;">
+              <div id="wpo-name-display-${wp.id}" style="font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${wp.name}</div>
+              <div style="font-size:11px;color:#64748b;">${wp.km.toFixed(1)} km · <span style="color:#10b981;font-weight:600;">${admNaira(wp.fee)}</span> · ~${admFmtM(wp.eta)} ${isActive?'· <span style="color:#f59e0b;">In Transit</span>':''}</div>
+            </div>
+            <div style="display:flex;gap:5px;flex-shrink:0;">
+              <button onclick="_wpoEdit('${wp.id}')" title="Edit name" style="width:28px;height:28px;border-radius:7px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);color:#60a5fa;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;">✏️</button>
+              <button onclick="_wpoDel('${wp.id}')" title="Remove" style="width:28px;height:28px;border-radius:7px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#f87171;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;">🗑</button>
+            </div>
+          </div>
+          <div id="wpo-edit-${wp.id}" style="display:none;margin-top:4px;">
+            <input id="wpo-inp-${wp.id}" type="text" value="${wp.name}" style="width:100%;background:#0d1e35;border:1.5px solid #3b82f6;color:#e2e8f0;font-family:'DM Sans',sans-serif;font-size:13px;padding:9px 12px;border-radius:9px;outline:none;margin-bottom:7px;" />
+            <div style="display:flex;gap:6px;">
+              <button onclick="_wpoSaveEdit('${wp.id}')" style="flex:1;padding:8px;border-radius:8px;background:#3b82f6;border:none;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">Save</button>
+              <button onclick="_wpoCancelEdit('${wp.id}')" style="flex:1;padding:8px;border-radius:8px;background:rgba(100,116,139,0.15);border:1px solid #1e3a5f;color:#94a3b8;font-size:12px;cursor:pointer;">Cancel</button>
+            </div>
+          </div>`;
+        list.appendChild(card);
+      });
+    }
+
+    function _wpoEdit(id) {
+      document.getElementById(`wpo-edit-${id}`).style.display = 'block';
+      document.getElementById(`wpo-name-display-${id}`).style.opacity = '0.4';
+      document.getElementById(`wpo-inp-${id}`).focus();
+    }
+    function _wpoCancelEdit(id) {
+      document.getElementById(`wpo-edit-${id}`).style.display = 'none';
+      document.getElementById(`wpo-name-display-${id}`).style.opacity = '1';
+    }
+    function _wpoSaveEdit(id) {
+      const inp = document.getElementById(`wpo-inp-${id}`);
+      const newName = inp.value.trim();
+      if (!newName) return;
+      const wp = admWPs.find(w => w.id == id); // == intentional (id can be number or string)
+      if (wp) { wp.name = newName; admSave(); }
+      document.getElementById(`wpo-name-display-${id}`).textContent = newName;
+      _wpoCancelEdit(id);
+    }
+    function _wpoDel(id) {
+      const idx = admWPs.findIndex(w => w.id == id);
+      if (idx < 0) return;
+      admWPs.splice(idx, 1);
+      admSave();
+      const card = document.getElementById(`wpo-card-${id}`);
+      if (card) card.remove();
+      // update stats
+      document.getElementById('wpo-planned-count').textContent = admWPs.filter(w=>w.status==='planned').length;
+      document.getElementById('wpo-active-count').textContent  = admWPs.filter(w=>w.status==='active').length;
+      document.getElementById('wpo-total-fee').textContent     = admNaira(admWPs.reduce((s,w)=>s+(w.fee||0),0));
+      if (!admWPs.length) _wpoRenderList(); // show empty state
+    }
+
+    document.getElementById('wpo-close-btn').addEventListener('click', wpoHide);
+    document.getElementById('wpo-go-btn').addEventListener('click', () => { wpoHide(); admRenderAll(); });
+    document.getElementById('wpo-clear-all-btn').addEventListener('click', () => {
+      if (!confirm('Remove ALL waypoints? This cannot be undone.')) return;
+      admWPs = []; admSave();
+      wpoHide(); admRenderAll();
+    });
 
     /* ── Data ── */
     let admWPs = [];
@@ -2647,8 +2873,14 @@
     }
 
     function admMapDirections(la, lo) {
+      // Open Google Maps turn-by-turn directions from store to destination (clones Google Maps experience)
+      const origin = `${CFG.lat},${CFG.lng}`;
+      const dest   = `${la},${lo}`;
+      const gmUrl  = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`;
+      window.open(gmUrl, '_blank', 'noopener');
+      // Also draw the route on the admin map for reference
       admDrawRoute(la, lo);
-      admSwitchTab('search'); // switch bottom panel away so map is visible
+      admSwitchTab('search');
       setTimeout(() => admMap && admMap.invalidateSize(), 150);
     }
 
@@ -2931,7 +3163,8 @@
       const el=document.getElementById(`sh-${wp.id}`); if(!el) return;
       const locPart=riderLat?`\n📍 Rider live location: https://www.google.com/maps?q=${riderLat},${riderLng}`:'';
       const msg=encodeURIComponent(`🛵 *Brainbox Store – Your Delivery is On the Way!*\n\n📦 Delivering to: ${wp.name}\n📏 Distance: ${wp.km.toFixed(1)} km\n⏱️ Est. arrival: ${admArr(wp.eta)}${locPart}\n\nThank you for choosing Brainbox Store! 💙`);
-      el.href=`https://wa.me/?text=${msg}`;
+      // Open WhatsApp with the store's configured number so the message goes to the right customer channel
+      el.href=`https://wa.me/${CFG.wa}?text=${msg}`;
     }
 
     const admRenderAll = () => { admRenderWP(); admRenderActive(); };
@@ -3034,6 +3267,7 @@
     document.getElementById('logout-btn').addEventListener('click',()=>{
       if(!confirm('Sign out of Brainbox Admin?')) return;
       admStopBroadcast();
+      hbStopSending();    // ← stop heartbeat, mark admin offline
       if(admTimerTick){clearInterval(admTimerTick);admTimerTick=null;}
       document.getElementById('dashboard').style.display='none';
       document.getElementById('login-screen').style.display='flex';
