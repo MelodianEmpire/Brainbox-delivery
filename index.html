@@ -1355,6 +1355,10 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
                 Directions
               </button>
+              <button class="btn-dir" id="btn-voice-nav" style="background:rgba(16,185,129,0.1);border-color:rgba(16,185,129,0.3);color:#10b981;" title="Voice Navigation">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                Voice Nav
+              </button>
               <button class="btn-awp" id="btn-add-wp">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add Waypoint
@@ -2590,10 +2594,44 @@
 
     // Helper: apply incoming live state to window.bbLive and refresh UI
     let _prevActive = false;
+    const LIVE_STATE_TTL_MS = 3 * 60 * 60 * 1000; // 3 hours — auto-expire stale deliveries
+
+    function _isLiveStateStale(s) {
+      // If the record has a timestamp and it is older than 3 hours, treat as expired
+      if (!s || !s.ts) return false;
+      return (Date.now() - s.ts) > LIVE_STATE_TTL_MS;
+    }
+
+    function _clearLiveUI(justEnded) {
+      window.bbLive.active      = false;
+      window.bbLive.riderLat    = null;
+      window.bbLive.riderLng    = null;
+      window.bbLive.routePoints = null;
+      liveStartedAt = null;
+      if (liveMapOpen) {
+        liveMapOpen = false;
+        const overlay = document.getElementById('live-map-overlay');
+        const chk = document.getElementById('live-toggle-chk');
+        if (overlay) overlay.classList.remove('open');
+        if (chk) chk.checked = false;
+        unregisterViewer();
+        stopLiveDetailsTicker();
+        custMapClose();
+        if (justEnded) pubToast('Delivery tracking expired — rider may be offline.');
+      }
+    }
 
     function applyLiveState(s) {
       if (!s) return;
       const wasActive = window.bbLive.active;
+
+      // ── TTL guard: if the live record is older than 3 hours, auto-clear it ──
+      if (s.active && _isLiveStateStale(s)) {
+        _clearLiveUI(wasActive);
+        updateLiveBtn();
+        return;
+      }
+
       if (s.active && s.riderLat) {
         window.bbLive.active      = true;
         window.bbLive.riderLat    = s.riderLat;
@@ -2603,33 +2641,13 @@
         if (s.destName)     window.bbLive.destName    = s.destName;
         if (s.startedAt)    window.bbLive.startedAt   = s.startedAt;
         if (s.routePoints)  window.bbLive.routePoints = s.routePoints;
-
-        // Browser notification: delivery just went live
         if (!wasActive) {
           liveStartedAt = s.startedAt || Date.now();
           const dest = s.destName ? ' to ' + s.destName : '';
           sendBrowserNotif('🛵 Delivery is on the way!', 'Your rider is now heading' + dest + '. Open the app to track live.', 'live-start');
         }
       } else if (s.active === false) {
-        const justEnded = wasActive;
-        window.bbLive.active      = false;
-        window.bbLive.riderLat    = null;
-        window.bbLive.riderLng    = null;
-        window.bbLive.routePoints = null;
-        liveStartedAt = null;
-
-        // If map was open, auto-close and uncheck switch
-        if (liveMapOpen) {
-          liveMapOpen = false;
-          const overlay = document.getElementById('live-map-overlay');
-          const chk = document.getElementById('live-toggle-chk');
-          if (overlay) overlay.classList.remove('open');
-          if (chk) chk.checked = false;
-          unregisterViewer();
-          stopLiveDetailsTicker();
-          custMapClose();
-          if (justEnded) pubToast('Delivery broadcast ended.');
-        }
+        _clearLiveUI(wasActive);
       }
       updateLiveBtn();
       if (liveMapOpen) { custMapRefresh(); updateLiveDetails(); }
@@ -2644,13 +2662,23 @@
       try { applyLiveState(e.newValue ? JSON.parse(e.newValue) : { active: false }); } catch(e) {}
     });
 
-    // Fast poll every 2s for same-device localStorage fallback + UI refresh
+    // Poll every 2s: refresh UI + check for stale state (catches internet-off scenario)
     setInterval(() => {
+      // Check Firebase state for staleness — if it's old, wipe it from the UI
+      if (window.bbLive.active && window.bbLive.ts && _isLiveStateStale(window.bbLive)) {
+        _clearLiveUI(true);
+      }
+      // localStorage fallback (same-device, only trust if fresh ≤ 15s)
       try {
         const raw = localStorage.getItem('bbLiveState');
         if (raw) {
           const s = JSON.parse(raw);
           if (s && s.ts && (Date.now() - s.ts < 15000)) applyLiveState(s);
+          // Stale localStorage — clear it so it doesn't ghost-show old deliveries
+          else if (s && s.ts && (Date.now() - s.ts > 15000) && s.active) {
+            localStorage.removeItem('bbLiveState');
+            if (window.bbLive.active && !fbDB) _clearLiveUI(true);
+          }
         }
       } catch(e) {}
       updateLiveBtn();
@@ -2884,6 +2912,202 @@
       setTimeout(() => admMap && admMap.invalidateSize(), 150);
     }
 
+    /* ══════════════════════════════════════════════════════════════
+       VOICE NAVIGATION SYSTEM (admin)
+       Uses Web Speech API + OSRM step-by-step to give real-time
+       spoken turn instructions just like Google Maps.
+    ══════════════════════════════════════════════════════════════ */
+    let _voiceNav = {
+      active: false,
+      steps: [],          // OSRM step objects
+      stepIndex: 0,       // which step we're on
+      lastAnnouncedIdx: -1,
+      destLat: null, destLng: null,
+      watchId: null,
+      announced: new Set(),
+      muted: false,
+    };
+
+    const _synth = window.speechSynthesis;
+
+    function _speak(text, interrupt = true) {
+      if (!_synth || _voiceNav.muted) return;
+      if (interrupt) _synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US';
+      u.rate = 1.05;
+      u.pitch = 1.0;
+      u.volume = 1.0;
+      _synth.speak(u);
+    }
+
+    function _osmrManeuverToText(step) {
+      // Convert OSRM step maneuver into a natural spoken direction
+      const m = step.maneuver || {};
+      const type = m.type || '';
+      const mod  = m.modifier || '';
+      const name = step.name ? ' onto ' + step.name : '';
+      const dist = step.distance > 0 ? ' in ' + _fmtDist(step.distance) : '';
+
+      if (type === 'depart')        return 'Start navigating. Head ' + (mod || 'forward') + name + '.';
+      if (type === 'arrive')        return 'You have arrived at your destination.';
+      if (type === 'turn') {
+        if (mod === 'left')         return 'Turn left' + name + dist + '.';
+        if (mod === 'right')        return 'Turn right' + name + dist + '.';
+        if (mod === 'sharp left')   return 'Take a sharp left' + name + dist + '.';
+        if (mod === 'sharp right')  return 'Take a sharp right' + name + dist + '.';
+        if (mod === 'slight left')  return 'Keep slightly left' + name + dist + '.';
+        if (mod === 'slight right') return 'Keep slightly right' + name + dist + '.';
+        if (mod === 'uturn')        return 'Make a U-turn' + dist + '.';
+        return 'Turn ' + mod + name + dist + '.';
+      }
+      if (type === 'roundabout')    return 'Enter the roundabout and take exit ' + (m.exit||'') + name + '.';
+      if (type === 'merge')         return 'Merge ' + (mod||'') + name + dist + '.';
+      if (type === 'on ramp')       return 'Take the ramp' + name + dist + '.';
+      if (type === 'off ramp')      return 'Take the exit' + name + dist + '.';
+      if (type === 'fork') {
+        if (mod.includes('left'))   return 'Keep left at the fork' + name + dist + '.';
+        if (mod.includes('right'))  return 'Keep right at the fork' + name + dist + '.';
+        return 'Stay on the road at the fork' + dist + '.';
+      }
+      if (type === 'continue')      return 'Continue' + name + dist + '.';
+      if (type === 'new name')      return 'Continue onto ' + (step.name || 'the road') + dist + '.';
+      if (type === 'end of road') {
+        if (mod.includes('left'))   return 'At the end of the road, turn left' + name + '.';
+        if (mod.includes('right'))  return 'At the end of the road, turn right' + name + '.';
+        return 'At the end of the road' + name + '.';
+      }
+      return 'Continue' + (step.name ? ' on ' + step.name : '') + dist + '.';
+    }
+
+    function _fmtDist(m) {
+      if (m < 50)   return 'a few metres';
+      if (m < 200)  return Math.round(m/10)*10 + ' metres';
+      if (m < 1000) return Math.round(m/100)*100 + ' metres';
+      return (m/1000).toFixed(1) + ' kilometres';
+    }
+
+    async function _voiceFetchRoute(lat, lng, dLat, dLng) {
+      const url = `https://router.project-osrm.org/route/v1/driving/${lng},${lat};${dLng},${dLat}?steps=true&overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.routes?.[0]?.legs?.[0]?.steps) throw new Error('no steps');
+      return data.routes[0].legs[0].steps;
+    }
+
+    function _voiceCheckStep(curLat, curLng) {
+      if (!_voiceNav.active || !_voiceNav.steps.length) return;
+      const steps = _voiceNav.steps;
+      // Find the closest upcoming step we haven't passed yet
+      for (let i = _voiceNav.stepIndex; i < steps.length; i++) {
+        const step = steps[i];
+        if (!step.maneuver) continue;
+        const sLat = step.maneuver.location[1];
+        const sLng = step.maneuver.location[0];
+        const distM = admHav(curLat, curLng, sLat, sLng) * 1000;
+
+        if (distM < 20 && !_voiceNav.announced.has(i)) {
+          // At the turn — announce it immediately
+          _voiceNav.announced.add(i);
+          _voiceNav.stepIndex = i + 1;
+          _speak(_osmrManeuverToText(step));
+        } else if (distM < 150 && !_voiceNav.announced.has('pre_' + i)) {
+          // Approaching — pre-announce
+          _voiceNav.announced.add('pre_' + i);
+          const upcoming = _osmrManeuverToText(step);
+          _speak('In ' + _fmtDist(distM) + ', ' + upcoming.charAt(0).toLowerCase() + upcoming.slice(1), false);
+        }
+        if (distM < 300) break; // only look at the very next relevant step
+      }
+
+      // Check arrival
+      const dDistM = admHav(curLat, curLng, _voiceNav.destLat, _voiceNav.destLng) * 1000;
+      if (dDistM < 30 && !_voiceNav.announced.has('arrive')) {
+        _voiceNav.announced.add('arrive');
+        _speak('You have arrived at your destination.');
+        voiceNavStop();
+      }
+    }
+
+    async function voiceNavStart(destLat, destLng, destName) {
+      if (!_synth) { admToast('❌ Voice not supported in this browser'); return; }
+      if (!navigator.geolocation) { admToast('❌ GPS required for voice nav'); return; }
+      voiceNavStop(); // stop any existing session
+      _voiceNav.active = true;
+      _voiceNav.destLat = destLat;
+      _voiceNav.destLng = destLng;
+      _voiceNav.steps = [];
+      _voiceNav.stepIndex = 0;
+      _voiceNav.announced = new Set();
+      _voiceNav.muted = false;
+      admToast('🔊 Voice navigation starting…');
+      _speak('Starting navigation to ' + (destName || 'your destination') + '.');
+
+      // Update nav button UI
+      _voiceNavUpdateBtn(true);
+
+      // Get current position then fetch route
+      navigator.geolocation.getCurrentPosition(async pos => {
+        const { latitude: la, longitude: lo } = pos.coords;
+        try {
+          _voiceNav.steps = await _voiceFetchRoute(la, lo, destLat, destLng);
+          if (_voiceNav.steps.length) {
+            _speak(_osmrManeuverToText(_voiceNav.steps[0]));
+          }
+        } catch(e) {
+          admToast('⚠️ Could not fetch route for voice nav. GPS-only mode.');
+        }
+        // Start watching GPS for turn announcements
+        _voiceNav.watchId = navigator.geolocation.watchPosition(
+          p => { if (_voiceNav.active) _voiceCheckStep(p.coords.latitude, p.coords.longitude); },
+          () => {},
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 2000 }
+        );
+      }, () => { admToast('❌ Could not get location for voice navigation'); }, { enableHighAccuracy: true, timeout: 10000 });
+    }
+
+    function voiceNavStop() {
+      if (_synth) _synth.cancel();
+      if (_voiceNav.watchId !== null) { navigator.geolocation.clearWatch(_voiceNav.watchId); _voiceNav.watchId = null; }
+      _voiceNav.active = false;
+      _voiceNavUpdateBtn(false);
+    }
+
+    function voiceNavToggleMute() {
+      _voiceNav.muted = !_voiceNav.muted;
+      const btn = document.getElementById('voice-mute-btn');
+      if (btn) btn.textContent = _voiceNav.muted ? '🔇 Unmute' : '🔊 Mute';
+      if (!_voiceNav.muted) _speak('Voice navigation unmuted.');
+    }
+
+    function _voiceNavUpdateBtn(active) {
+      const btn = document.getElementById('voice-nav-btn');
+      const bar = document.getElementById('voice-nav-bar');
+      if (btn) {
+        btn.textContent = active ? '🔇 Stop Voice Nav' : '🔊 Voice Nav';
+        btn.style.background = active ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.15)';
+        btn.style.borderColor = active ? 'rgba(239,68,68,0.4)' : 'rgba(59,130,246,0.35)';
+        btn.style.color = active ? '#f87171' : '#60a5fa';
+      }
+      if (bar) bar.style.display = active ? 'flex' : 'none';
+    }
+
+    // Inject voice nav UI into admin header area
+    document.addEventListener('DOMContentLoaded', () => {}, false); // ensure DOM ready
+    (function _injectVoiceNavUI() {
+      // Voice nav bar (shown when active) — injected into admin broadcast bar area
+      const bar = document.createElement('div');
+      bar.id = 'voice-nav-bar';
+      bar.style.cssText = 'display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 14px;background:rgba(16,185,129,0.08);border-bottom:1px solid rgba(16,185,129,0.2);font-size:12px;color:#10b981;';
+      bar.innerHTML = '<span style="font-size:13px;">🔊</span><span id="voice-nav-status" style="flex:1;font-weight:600;">Voice navigation active</span>'
+        + '<button id="voice-mute-btn" onclick="voiceNavToggleMute()" style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:4px 10px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:600;">🔊 Mute</button>'
+        + '<button onclick="voiceNavStop()" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#f87171;padding:4px 10px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:600;">✕ Stop</button>';
+
+      // Insert after broadcast-bar
+      const bcBar = document.getElementById('broadcast-bar');
+      if (bcBar && bcBar.parentNode) bcBar.parentNode.insertBefore(bar, bcBar.nextSibling);
+    })();
+
     /* ── Arrival detection geofence ── */
     let _arrivalPopupWpId = null; // which wp the popup is currently about
     let _arrivalArmed = true;     // false while popup is showing to avoid repeats
@@ -2981,6 +3205,9 @@
       admBroadcasting=true;
       _admLastBroadcastPos=null; _admLastBroadcastTs=0;
       admRequestWakeLock();
+      // Register Firebase onDisconnect: if admin tab crashes/loses internet mid-broadcast,
+      // Firebase will auto-clear the live state so customers don't see a frozen delivery
+      if (fbLiveRef) { try { fbLiveRef.onDisconnect().set({ active: false, ts: 0 }); } catch(e) {} }
       document.getElementById('broadcast-btn').classList.add('active');
       document.getElementById('bc-label').textContent='Live';
       document.getElementById('broadcast-bar').classList.add('visible');
@@ -3031,6 +3258,8 @@
       admBroadcasting=false;
       admReleaseWakeLock();
       if (admWatchId!==null) { navigator.geolocation.clearWatch(admWatchId); admWatchId=null; }
+      // Cancel the onDisconnect handler since we're stopping cleanly
+      if (fbLiveRef) { try { fbLiveRef.onDisconnect().cancel(); } catch(e) {} }
       document.getElementById('broadcast-btn').classList.remove('active');
       document.getElementById('bc-label').textContent='Broadcast';
       document.getElementById('broadcast-bar').classList.remove('visible');
@@ -3095,6 +3324,8 @@
       document.getElementById('sel-fee').textContent=admNaira(fee);
       document.getElementById('sel-eta').textContent='~'+admFmtM(eta);
       document.getElementById('sel-dir').onclick = () => admMapDirections(r.lat, r.lng);
+      const vnBtn = document.getElementById('btn-voice-nav');
+      if (vnBtn) vnBtn.onclick = () => voiceNavStart(r.lat, r.lng, r.shortName);
       document.getElementById('selected-card').style.display='block';
       admDrawRoute(r.lat,r.lng);
     }
@@ -3136,7 +3367,7 @@
       list.innerHTML='';
       pl.forEach((wp,i)=>{
           const el=document.createElement('div'); el.className='wp-card';
-        el.innerHTML=`<div class="wp-hdr"><div class="wp-num">${i+1}</div><div style="flex:1;min-width:0"><div class="wp-name">${wp.name}</div><div class="wp-meta"><span class="g">${admNaira(wp.fee)}</span> · ${wp.km.toFixed(1)} km · <span class="a">~${admFmtM(wp.eta)}</span></div></div></div><div class="wp-acts"><button class="wb wb-dir" onclick="admMapDirections(${wp.lat},${wp.lng})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>On Map</button><button class="wb wb-start" data-id="${wp.id}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>Start</button><button class="wb wb-del" data-id="${wp.id}" style="max-width:38px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;
+        el.innerHTML=`<div class="wp-hdr"><div class="wp-num">${i+1}</div><div style="flex:1;min-width:0"><div class="wp-name">${wp.name}</div><div class="wp-meta"><span class="g">${admNaira(wp.fee)}</span> · ${wp.km.toFixed(1)} km · <span class="a">~${admFmtM(wp.eta)}</span></div></div></div><div class="wp-acts"><button class="wb wb-dir" onclick="admMapDirections(${wp.lat},${wp.lng})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>Map</button><button class="wb" style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#10b981;" onclick="voiceNavStart(${wp.lat},${wp.lng},'${wp.name.replace(/'/g,"\\'")}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>Voice</button><button class="wb wb-start" data-id="${wp.id}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>Start</button><button class="wb wb-del" data-id="${wp.id}" style="max-width:38px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;
         el.querySelector('.wb-start').addEventListener('click',()=>admStartDelivery(wp.id));
         el.querySelector('.wb-del').addEventListener('click',()=>admRemoveWP(wp.id));
         list.appendChild(el);
@@ -3152,7 +3383,7 @@
       list.innerHTML='';
       ac.forEach(wp=>{
         const el=document.createElement('div'); el.className='act-card'; el.id=`ac-${wp.id}`;
-        el.innerHTML=`<div class="act-status"><div class="live-dot"></div><span class="act-lbl">In Transit</span></div><div class="act-name">${wp.name}</div><div class="act-meta">${wp.km.toFixed(1)} km · ${admNaira(wp.fee)} · <button onclick="admMapDirections(${wp.lat},${wp.lng})" style="background:none;border:none;color:var(--a-accent);font-size:12px;cursor:pointer;padding:0;font-family:DM Sans,sans-serif;">📍 Show on map</button></div><div class="timers"><div class="tbox"><div class="tval" id="el-${wp.id}">0:00</div><div class="tlbl">Elapsed</div></div><div class="tbox"><div class="tval eta-ok" id="ar-${wp.id}">${admArr(wp.eta)}</div><div class="tlbl">Arrival</div></div><div class="tbox"><div class="tval eta-ok" id="rm-${wp.id}">${admFmtM(wp.eta)}</div><div class="tlbl">Remaining</div></div></div><div class="act-acts"><a class="act-share" id="sh-${wp.id}" href="#" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>Share ETA</a><button class="act-done" data-id="${wp.id}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Delivered ✓</button></div>`;
+        el.innerHTML=`<div class="act-status"><div class="live-dot"></div><span class="act-lbl">In Transit</span></div><div class="act-name">${wp.name}</div><div class="act-meta">${wp.km.toFixed(1)} km · ${admNaira(wp.fee)} · <button onclick="admMapDirections(${wp.lat},${wp.lng})" style="background:none;border:none;color:var(--a-accent);font-size:12px;cursor:pointer;padding:0;font-family:DM Sans,sans-serif;">📍 Show on map</button> · <button onclick="voiceNavStart(${wp.lat},${wp.lng},'${wp.name.replace(/'/g,"\\'")}')" style="background:none;border:none;color:#10b981;font-size:12px;cursor:pointer;padding:0;font-family:DM Sans,sans-serif;">🔊 Voice Nav</button></div><div class="timers"><div class="tbox"><div class="tval" id="el-${wp.id}">0:00</div><div class="tlbl">Elapsed</div></div><div class="tbox"><div class="tval eta-ok" id="ar-${wp.id}">${admArr(wp.eta)}</div><div class="tlbl">Arrival</div></div><div class="tbox"><div class="tval eta-ok" id="rm-${wp.id}">${admFmtM(wp.eta)}</div><div class="tlbl">Remaining</div></div></div><div class="act-acts"><a class="act-share" id="sh-${wp.id}" href="#" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>Share ETA</a><button class="act-done" data-id="${wp.id}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Delivered ✓</button></div>`;
         el.querySelector('.act-done').addEventListener('click',()=>admMarkDone(wp.id));
         admRefreshShare(wp);
         list.appendChild(el);
@@ -3281,6 +3512,31 @@
       admLoad(); admInitMap(); admRenderAll();
       if(admActive().length) admStartTimers();
       setTimeout(()=>admMap&&admMap.invalidateSize(),300);
+
+      // ── Stale-state cleanup on login ──
+      // If Firebase still shows active=true but the ts is > 3h old (admin lost internet
+      // without stopping broadcast), auto-clear it so customers don't see a ghost delivery.
+      // This replaces the old "stop broadcast → start → stop" workaround.
+      if (fbDB) {
+        fbDB.ref('brainboxstore/live').once('value', snap => {
+          const s = snap.val();
+          if (s && s.active && s.ts && (Date.now() - s.ts) > (3 * 60 * 60 * 1000)) {
+            admToast('🧹 Cleared stale delivery — was left active from a previous session');
+            fbClear();
+            try { localStorage.removeItem('bbLiveState'); } catch(e) {}
+          }
+        }).catch(() => {});
+      }
+      // Also clear stale localStorage immediately
+      try {
+        const raw = localStorage.getItem('bbLiveState');
+        if (raw) {
+          const s = JSON.parse(raw);
+          if (s && s.active && s.ts && (Date.now() - s.ts) > (3 * 60 * 60 * 1000)) {
+            localStorage.removeItem('bbLiveState');
+          }
+        }
+      } catch(e) {}
     }
 
     /* ── Arrival popup button handlers ── */
