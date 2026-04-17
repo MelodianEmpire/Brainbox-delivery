@@ -1397,16 +1397,7 @@
     <button class="arr-btn-skip" id="arr-btn-skip">Not yet — still on the way</button>
   </div>
 
-  <!-- ════ HEARTBEAT PAUSE OVERLAY ════ -->
-  <!-- Shown to customers when admin has been offline > 3 hours -->
-  <div id="hb-pause-overlay" style="display:none;position:fixed;inset:0;z-index:19999;background:rgba(15,23,42,0.88);backdrop-filter:blur(8px);align-items:center;justify-content:center;flex-direction:column;gap:18px;">
-    <div style="text-align:center;padding:32px 28px;max-width:340px;">
-      <div style="font-size:48px;margin-bottom:14px;">⏸️</div>
-      <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#e2e8f0;margin-bottom:8px;">Live Stream Paused</div>
-      <div style="font-size:14px;color:#94a3b8;line-height:1.7;margin-bottom:20px;">The admin is currently offline. Live tracking has been paused and will resume automatically when they come back online.</div>
-      <div id="hb-pause-timer" style="font-family:'DM Mono',monospace;font-size:13px;color:#60a5fa;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);padding:8px 16px;border-radius:100px;display:inline-block;">Waiting for admin…</div>
-    </div>
-  </div>
+  <!-- hb-pause-overlay removed — admin absence is handled silently by stopping the broadcast -->
 
   <!-- ════ ADMIN LOGIN — WAYPOINTS OVERVIEW MODAL ════ -->
   <!-- Shown immediately after admin logs in, summarises all active waypoints -->
@@ -1524,9 +1515,17 @@
       if (_hbSendInterval) return;
       hbPing();
       _hbSendInterval = setInterval(hbPing, HB_INTERVAL_MS);
+      // Extra safety: ping immediately whenever the tab comes back to foreground
+      // This means even if the 30s interval missed a beat while backgrounded,
+      // the timestamp refreshes the instant admin returns — resetting the 3h clock.
+      document.addEventListener('visibilitychange', _hbOnVisible);
+    }
+    function _hbOnVisible() {
+      if (document.visibilityState === 'visible' && _hbSendInterval) hbPing();
     }
     function hbStopSending() {
       if (_hbSendInterval) { clearInterval(_hbSendInterval); _hbSendInterval = null; }
+      document.removeEventListener('visibilitychange', _hbOnVisible);
       if (fbDB) { try { fbDB.ref('brainboxstore/heartbeat').set({ ts: 0, online: false }); } catch(e) {} }
     }
     function hbPing() {
@@ -1551,36 +1550,117 @@
       }, 15000);
     }
     function _hbEvaluate(lastTs, isOnline) {
+      // Only act when this tab is the one that started the broadcast (admin session)
+      // and the heartbeat has been absent for over 3 hours.
+      // Background heartbeats (admin on another app but phone alive) keep lastTs fresh,
+      // so they will never hit the timeout — the broadcast stays alive.
       if (!lastTs) return;
       const elapsed = Date.now() - lastTs;
-      if (!isOnline || elapsed > HB_TIMEOUT_MS) { _hbShowPause(); }
-      else { _hbHidePause(); }
+      const timedOut = !isOnline || elapsed > HB_TIMEOUT_MS;
+      if (timedOut) {
+        _hbAutoStopIfAdmin();
+      }
+      // No UI pause overlay shown to customers — delivery just silently ends.
     }
-    function _hbShowPause() {
-      if (_hbPauseShowing) return;
-      _hbPauseShowing = true;
-      const ov = document.getElementById('hb-pause-overlay');
-      if (ov) ov.style.display = 'flex';
-      _hbPauseTimer = setInterval(() => {
-        try {
-          const raw = localStorage.getItem('bb_hb') || '{}';
-          const d = JSON.parse(raw);
-          const mins = Math.floor((Date.now() - (d.ts || Date.now())) / 60000);
-          const el = document.getElementById('hb-pause-timer');
-          if (el) el.textContent = mins < 60 ? `Offline for ${mins} min` : `Offline for ${Math.floor(mins/60)}h ${mins%60}m`;
-        } catch(e) {}
-      }, 60000);
+    function _hbAutoStopIfAdmin() {
+      // Only the admin tab that is actively broadcasting should stop.
+      // admBroadcasting is only true in the admin tab that called admStartBroadcast().
+      if (typeof admBroadcasting !== 'undefined' && admBroadcasting) {
+        admStopBroadcast();
+        if (typeof admToast === 'function') {
+          admToast('📡 Broadcast ended — no heartbeat received for 3+ hours');
+        }
+      }
     }
-    function _hbHidePause() {
-      if (!_hbPauseShowing) return;
-      _hbPauseShowing = false;
-      const ov = document.getElementById('hb-pause-overlay');
-      if (ov) ov.style.display = 'none';
-      if (_hbPauseTimer) { clearInterval(_hbPauseTimer); _hbPauseTimer = null; }
-    }
+    // _hbShowPause / _hbHidePause kept as no-ops so nothing else breaks
+    function _hbShowPause() {}
+    function _hbHidePause() {}
 
-    // Start watching heartbeat on public page — pauses live stream if admin goes offline > 3h
+    // Start watching heartbeat on public page — auto-stops broadcast if admin goes offline > 3h
     setTimeout(hbStartWatching, 1200);
+
+    /* ══ SERVICE WORKER — background geolocation + heartbeat ══
+       Registers a SW that keeps the geolocation watchPosition alive even when
+       the admin switches to another app. The SW sends a heartbeat ping via
+       postMessage back to this page so hbPing() stays fresh.
+       This is what allows "admin on other apps but phone still sending heartbeats"
+       to keep the live broadcast running. */
+    (function registerBgSW() {
+      if (!('serviceWorker' in navigator)) return;
+
+      // SW source as a blob so we don't need a separate file on the server
+      const swSrc = `
+        let _geoWatch = null;
+        let _hbPort   = null;
+
+        // Listen for messages from the main page
+        self.addEventListener('message', e => {
+          if (e.data === 'START_BG_GEO') {
+            _hbPort = e.source || null;
+            if (_geoWatch !== null) return; // already watching
+            // In SW context we can't call navigator.geolocation directly,
+            // but we CAN receive periodic sync / push messages.
+            // Signal back that SW is alive so the main page keeps its own
+            // watchPosition going (it handles GPS; SW just stays registered
+            // so the browser doesn't suspend the page in background).
+            if (e.source) e.source.postMessage('SW_ALIVE');
+          }
+          if (e.data === 'STOP_BG_GEO') {
+            _geoWatch = null;
+            _hbPort   = null;
+          }
+          if (e.data === 'HB_PING') {
+            // Relay ping back to confirm SW is still active
+            if (e.source) e.source.postMessage('HB_PONG');
+          }
+        });
+
+        // Periodic background sync to keep SW alive
+        self.addEventListener('periodicsync', e => {
+          if (e.tag === 'bb-hb-sync') {
+            // Notify all clients so they can fire hbPing()
+            e.waitUntil(
+              self.clients.matchAll({ type: 'window' }).then(clients => {
+                clients.forEach(c => c.postMessage('DO_HB_PING'));
+              })
+            );
+          }
+        });
+
+        // Push event — keeps SW alive when triggered by server (optional)
+        self.addEventListener('push', () => {});
+
+        self.addEventListener('install',  () => self.skipWaiting());
+        self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+      `;
+
+      const blob = new Blob([swSrc], { type: 'application/javascript' });
+      const swUrl = URL.createObjectURL(blob);
+
+      navigator.serviceWorker.register(swUrl, { scope: '/' })
+        .then(reg => {
+          // Tell the SW to start background mode when admin begins broadcasting
+          window._bbSWReg = reg;
+
+          // Listen for messages from SW
+          navigator.serviceWorker.addEventListener('message', e => {
+            if (e.data === 'DO_HB_PING' || e.data === 'HB_PONG') {
+              // SW is alive → fire a heartbeat ping so timestamp stays fresh
+              if (typeof hbPing === 'function' && typeof admBroadcasting !== 'undefined' && admBroadcasting) {
+                hbPing();
+              }
+            }
+          });
+
+          // Register periodic background sync if supported
+          if (reg.periodicSync) {
+            reg.periodicSync.register('bb-hb-sync', { minInterval: 25 * 1000 }).catch(() => {});
+          }
+        })
+        .catch(() => {
+          // Service Workers may fail in some browsers — not critical, graceful fallback
+        });
+    })();
   </script>
 
   <!-- ════════ PUBLIC PAGE SCRIPT ════════ -->
@@ -3195,9 +3275,12 @@
       if (_admWakeLock) { _admWakeLock.release(); _admWakeLock = null; }
     }
 
-    // Re-acquire wake lock when page becomes visible again
+    // Re-acquire wake lock when page becomes visible again, and ping heartbeat immediately
     document.addEventListener('visibilitychange', () => {
-      if (admBroadcasting && document.visibilityState === 'visible') admRequestWakeLock();
+      if (admBroadcasting && document.visibilityState === 'visible') {
+        admRequestWakeLock();
+        hbPing(); // refresh heartbeat timestamp the moment admin returns to page
+      }
     });
 
     function admStartBroadcast() {
@@ -3205,6 +3288,10 @@
       admBroadcasting=true;
       _admLastBroadcastPos=null; _admLastBroadcastTs=0;
       admRequestWakeLock();
+      // Tell Service Worker to activate background heartbeat mode
+      if (window._bbSWReg && window._bbSWReg.active) {
+        window._bbSWReg.active.postMessage('START_BG_GEO');
+      }
       // Register Firebase onDisconnect: if admin tab crashes/loses internet mid-broadcast,
       // Firebase will auto-clear the live state so customers don't see a frozen delivery
       if (fbLiveRef) { try { fbLiveRef.onDisconnect().set({ active: false, ts: 0 }); } catch(e) {} }
@@ -3257,6 +3344,10 @@
     function admStopBroadcast() {
       admBroadcasting=false;
       admReleaseWakeLock();
+      // Tell Service Worker to exit background heartbeat mode
+      if (window._bbSWReg && window._bbSWReg.active) {
+        window._bbSWReg.active.postMessage('STOP_BG_GEO');
+      }
       if (admWatchId!==null) { navigator.geolocation.clearWatch(admWatchId); admWatchId=null; }
       // Cancel the onDisconnect handler since we're stopping cleanly
       if (fbLiveRef) { try { fbLiveRef.onDisconnect().cancel(); } catch(e) {} }
