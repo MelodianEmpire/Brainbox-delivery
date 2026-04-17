@@ -2380,18 +2380,18 @@
     }
 
     function _helmetIconHtml() {
-      return '<div style="position:relative;width:38px;height:38px;">'
-        + '<svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">'
-        + '<ellipse cx="19" cy="16" rx="13" ry="10" fill="#1d4ed8"/>'
-        + '<path d="M7 21 Q8 27 19 28 Q30 27 31 21 Z" fill="#1e3a8a"/>'
-        + '<path d="M10 22 Q12 26 19 27 Q26 26 28 22 Z" fill="#93c5fd" opacity="0.7"/>'
-        + '<path d="M12 12 Q16 8 24 10" stroke="#93c5fd" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.6"/>'
-        + '<line x1="8" y1="24" x2="11" y2="30" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"/>'
-        + '<line x1="30" y1="24" x2="27" y2="30" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"/>'
-        + '<line x1="11" y1="30" x2="27" y2="30" stroke="#1e3a8a" stroke-width="2.5" stroke-linecap="round"/>'
-        + '</svg>'
-        + '<div style="position:absolute;bottom:-3px;right:-4px;width:16px;height:16px;border-radius:50%;overflow:hidden;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);z-index:2;">'
-        + '<img src="' + _CUST_LOGO + '" style="width:100%;height:100%;object-fit:cover;display:block;"></div>'
+      // Pure company logo circle with a blue ring + speed-line accent — no SVG helmet needed
+      return '<div style="position:relative;width:36px;height:36px;">'
+        // outer glow ring
+        + '<div style="position:absolute;inset:-3px;border-radius:50%;background:rgba(29,78,216,0.25);"></div>'
+        // white border circle
+        + '<div style="position:absolute;inset:0;border-radius:50%;background:#fff;border:2.5px solid #1d4ed8;box-shadow:0 2px 8px rgba(29,78,216,0.55);overflow:hidden;">'
+        + '<img src="' + _CUST_LOGO + '" style="width:100%;height:100%;object-fit:cover;display:block;">'
+        + '</div>'
+        // small direction arrow at the top (rotates with the shell to show heading)
+        + '<div style="position:absolute;top:-7px;left:50%;transform:translateX(-50%);width:0;height:0;'
+        +   'border-left:5px solid transparent;border-right:5px solid transparent;'
+        +   'border-bottom:7px solid #1d4ed8;"></div>'
         + '</div>';
     }
 
@@ -2399,7 +2399,7 @@
       return L.divIcon({
         className:'',
         html:'<div class="cust-rider-shell" style="display:inline-block;transition:transform 0.7s cubic-bezier(.4,0,.2,1);transform-origin:center center;">' + _helmetIconHtml() + '</div>',
-        iconSize:[38,38], iconAnchor:[19,19]
+        iconSize:[36,36], iconAnchor:[18,18]
       });
     }
 
@@ -2538,7 +2538,7 @@
         st.marker = L.marker([riderData.riderLat, riderData.riderLng],
           {icon:_makeHelmetIcon(), zIndexOffset:1000})
           .addTo(leafletMap)
-          .bindPopup('<div style="font-family:DM Sans,sans-serif;font-size:12px;font-weight:600;">🪖 Rider</div>');
+          .bindPopup('<div style="font-family:DM Sans,sans-serif;font-size:12px;font-weight:600;">🛵 Brainbox Rider</div>');
       } else if (st.lastLat !== null &&
           (st.lastLat !== riderData.riderLat || st.lastLng !== riderData.riderLng)) {
         _animateRider(st, st.lastLat, st.lastLng, riderData.riderLat, riderData.riderLng);
