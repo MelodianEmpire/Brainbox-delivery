@@ -1341,6 +1341,7 @@
           Share Location
         </a>
       </div>
+      </div><!-- /adm-right-col -->
 
       <div id="admin-map"></div>
 
@@ -1450,7 +1451,6 @@
           </div>
         </div>
       </div><!-- /bottom-panel -->
-      </div><!-- /adm-right-col -->
     </div><!-- /dashboard -->
   </div><!-- /adm -->
 
@@ -1662,13 +1662,14 @@
       }, 15000);
     }
     function _hbEvaluate(lastTs, isOnline) {
-      if (!lastTs || lastTs <= 0) return; // no heartbeat ever sent — nothing to evaluate
+      if (!lastTs || lastTs <= 0) return; // never been set
       const elapsed = Date.now() - lastTs;
-      // Only act if heartbeat was genuinely sent (ts within last 7 days) and then went offline/stale
-      const wasRealPing = elapsed < 7 * 24 * 60 * 60 * 1000;
-      if (!wasRealPing) return; // ancient/zeroed timestamp — ignore
-      const timedOut = (isOnline === false) || (elapsed > HB_TIMEOUT_MS);
-      if (timedOut) {
+      // Ignore ancient timestamps (> 7 days) — stale data from old sessions
+      if (elapsed > 7 * 24 * 60 * 60 * 1000) return;
+      // Only stop broadcast if heartbeat has genuinely been absent for the full 3h timeout.
+      // Do NOT act on isOnline===false alone — that is stale from the previous logout
+      // and fires the moment a new broadcast starts, before the first ping arrives.
+      if (elapsed > HB_TIMEOUT_MS) {
         _hbAutoStopIfAdmin();
       }
     }
@@ -2868,6 +2869,9 @@
     function openAdmin() {
       document.getElementById('adm').style.display = 'flex';
       document.body.classList.add('admin-open');
+      // Leaflet needs the container to be visible before it can measure its size
+      setTimeout(() => { if (typeof admMap !== 'undefined' && admMap) admMap.invalidateSize(); }, 50);
+      setTimeout(() => { if (typeof admMap !== 'undefined' && admMap) admMap.invalidateSize(); }, 300);
     }
     function closeAdmin() {
       document.getElementById('adm').style.display = 'none';
@@ -3753,6 +3757,9 @@
       admLoad(); admInitMap(); admRenderAll();
       if(admActive().length) admStartTimers();
       setTimeout(()=>admMap&&admMap.invalidateSize(),300);
+      // Init mapping module
+      if (typeof mpInit === 'function') mpInit();
+      setTimeout(() => { if (typeof mpHookMapClick === 'function') mpHookMapClick(); }, 700);
 
       // ── Stale-state cleanup on login ──
       // If Firebase still shows active=true but the ts is > 3h old (admin lost internet
@@ -4184,16 +4191,7 @@ ${trkpts}
   }
 
   /* ── Hook into broadcast to auto-record when the mapping tab is active ── */
-  const _mpOrigSetRider = typeof admSetRider === 'function' ? admSetRider : null;
-
-  /* ── Init on admin login ── */
-  const _mpOrigAdmInitDash = admInitDash;
-  function admInitDash() {
-    _mpOrigAdmInitDash();
-    mpInit();
-    // Hook map click after map is ready
-    setTimeout(mpHookMapClick, 600);
-  }
+  /* mpInit and mpHookMapClick are now called directly from admInitDash above */
 
   </script>
 
