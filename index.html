@@ -10,7 +10,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-  <link rel="preconnect" href="https://photon.komoot.io" crossorigin />
+  <link rel="preconnect" href="https://maps.googleapis.com" crossorigin />
+  <link rel="preconnect" href="https://maps.gstatic.com" crossorigin />
 
   <!-- Google Fonts — non-blocking via media trick -->
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap" />
@@ -1556,6 +1557,9 @@
     let fbLiveRef = null;      // legacy single-rider ref (kept for stale-state cleanup on login)
     let fbRiderRef = null;     // this admin's own rider node: brainboxstore/riders/<adminId>
     let fbRidersRef = null;    // parent node for all riders
+
+    // Google Maps Platform API key
+    const GOOGLE_MAPS_KEY = "AlzaSyCmL18misQw9KdwqGaw3zHkitj8vG6QF2Y";
 
     // Stable per-browser admin ID so each tab/device gets its own slot
     let _adminId = null;
@@ -3107,10 +3111,10 @@
     }
 
     function admMapDirections(la, lo) {
-      // Open Google Maps turn-by-turn directions from store to destination (clones Google Maps experience)
+      // Open Google Maps turn-by-turn directions from store to destination
       const origin = `${CFG.lat},${CFG.lng}`;
       const dest   = `${la},${lo}`;
-      const gmUrl  = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`;
+      const gmUrl  = `https://www.google.com/maps/dir/?api=1&key=${GOOGLE_MAPS_KEY}&origin=${origin}&destination=${dest}&travelmode=driving`;
       window.open(gmUrl, '_blank', 'noopener');
       // Also draw the route on the admin map for reference
       admDrawRoute(la, lo);
@@ -3152,6 +3156,9 @@
     }
 
     function _osmrManeuverToText(step) {
+      // If this step came from Google Directions, use its instruction directly
+      if (step._googleInstr) return step._googleInstr + '.';
+
       // Convert OSRM step maneuver into a natural spoken direction
       const m = step.maneuver || {};
       const type = m.type || '';
@@ -3198,15 +3205,78 @@
     }
 
     async function _voiceFetchRoute(lat, lng, dLat, dLng) {
+      // Try Google Directions API first (better local road data)
+      try {
+        const gUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${lat},${lng}&destination=${dLat},${dLng}&mode=driving&key=${GOOGLE_MAPS_KEY}`;
+        const gRes = await fetch(gUrl);
+        const gData = await gRes.json();
+        if (gData.status === 'OK' && gData.routes?.[0]?.legs?.[0]?.steps) {
+          // Convert Google steps to OSRM-compatible format for _osmrManeuverToText
+          const gSteps = gData.routes[0].legs[0].steps.map(s => ({
+            name: s.html_instructions.replace(/<[^>]+>/g, ''),
+            distance: s.distance.value,
+            maneuver: {
+              type: _googleManeuverType(s.maneuver || ''),
+              modifier: _googleManeuverMod(s.maneuver || ''),
+              location: [s.start_location.lng, s.start_location.lat],
+            },
+            _googleInstr: s.html_instructions.replace(/<[^>]+>/g, ''),
+          }));
+          // Store route geometry for off-route detection (decoded polyline)
+          const pts = _decodePolyline(gData.routes[0].overview_polyline.points);
+          _voiceNav.routeCoords = pts;
+          return gSteps;
+        }
+      } catch(e) { /* fall through to OSRM */ }
+
+      // Fallback: OSRM
       const url = `https://router.project-osrm.org/route/v1/driving/${lng},${lat};${dLng},${dLat}?steps=true&overview=full&geometries=geojson`;
       const res = await fetch(url);
       const data = await res.json();
       if (!data.routes?.[0]?.legs?.[0]?.steps) throw new Error('no steps');
-      // Also store the full route geometry for off-route detection
       if (data.routes[0].geometry?.coordinates) {
         _voiceNav.routeCoords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
       }
       return data.routes[0].legs[0].steps;
+    }
+
+    // Map Google maneuver strings to OSRM types/modifiers
+    function _googleManeuverType(m) {
+      if (!m) return 'continue';
+      if (m.includes('turn')) return 'turn';
+      if (m.includes('roundabout')) return 'roundabout';
+      if (m.includes('merge')) return 'merge';
+      if (m.includes('ramp') && m.includes('on')) return 'on ramp';
+      if (m.includes('ramp') && m.includes('off')) return 'off ramp';
+      if (m.includes('fork')) return 'fork';
+      if (m.includes('uturn') || m.includes('u-turn')) return 'turn';
+      return 'continue';
+    }
+    function _googleManeuverMod(m) {
+      if (!m) return '';
+      if (m.includes('sharp-left'))  return 'sharp left';
+      if (m.includes('sharp-right')) return 'sharp right';
+      if (m.includes('slight-left')) return 'slight left';
+      if (m.includes('slight-right'))return 'slight right';
+      if (m.includes('left'))        return 'left';
+      if (m.includes('right'))       return 'right';
+      if (m.includes('uturn') || m.includes('u-turn')) return 'uturn';
+      return '';
+    }
+
+    // Decode Google Maps encoded polyline
+    function _decodePolyline(encoded) {
+      const pts = []; let idx = 0, lat = 0, lng = 0;
+      while (idx < encoded.length) {
+        let b, shift = 0, result = 0;
+        do { b = encoded.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+        lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+        shift = 0; result = 0;
+        do { b = encoded.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+        lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+        pts.push([lat / 1e5, lng / 1e5]);
+      }
+      return pts;
     }
 
     // Returns distance in metres from point to nearest segment of the route polyline
