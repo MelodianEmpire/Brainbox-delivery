@@ -1913,10 +1913,20 @@
           return;
         }
         const norm = normalizeQuery(text);
+        // Sort: best text match first, then by distance to user's current location as tiebreaker
         items.sort((a, b) => {
           const aName = (a.properties?.name||'') + ' ' + (a.properties?.suburb||'') + ' ' + (a.properties?.city||'');
           const bName = (b.properties?.name||'') + ' ' + (b.properties?.suburb||'') + ' ' + (b.properties?.city||'');
-          return similarity(bName, norm) - similarity(aName, norm);
+          const simA = similarity(aName, norm);
+          const simB = similarity(bName, norm);
+          // If similarity is meaningfully different, use that
+          if (Math.abs(simB - simA) > 0.1) return simB - simA;
+          // Otherwise sort by distance to the user's current position (nearest first)
+          const aLat = a.geometry.coordinates[1], aLng = a.geometry.coordinates[0];
+          const bLat = b.geometry.coordinates[1], bLng = b.geometry.coordinates[0];
+          const distA = haversine(userLat, userLng, aLat, aLng);
+          const distB = haversine(userLat, userLng, bLat, bLng);
+          return distA - distB;
         });
         sugBox.innerHTML = '';
         items.forEach(feature => {
@@ -2860,6 +2870,18 @@
 
     // Start watching viewer count immediately (so admin sees it too)
     watchViewerCount();
+
+    // Auto-activate live tracking if URL contains ?autotrack=1
+    // (used by Share Location / Share ETA links from the admin panel)
+    if (new URLSearchParams(window.location.search).get('autotrack') === '1') {
+      setTimeout(() => {
+        const chk = document.getElementById('live-toggle-chk');
+        if (chk && !chk.checked) {
+          chk.checked = true;
+          toggleLiveMap();
+        }
+      }, 1400); // wait for Firebase to initialise and populate window.bbLive
+    }
   </script>
 
 
@@ -3110,6 +3132,10 @@
       watchId: null,
       announced: new Set(),
       muted: false,
+      routeCoords: [],    // full polyline for off-route detection
+      rerouteTimer: null, // debounce reroute requests
+      rerouteInProgress: false,
+      lastReroutePos: null,
     };
 
     const _synth = window.speechSynthesis;
@@ -3176,12 +3202,73 @@
       const res = await fetch(url);
       const data = await res.json();
       if (!data.routes?.[0]?.legs?.[0]?.steps) throw new Error('no steps');
+      // Also store the full route geometry for off-route detection
+      if (data.routes[0].geometry?.coordinates) {
+        _voiceNav.routeCoords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      }
       return data.routes[0].legs[0].steps;
+    }
+
+    // Returns distance in metres from point to nearest segment of the route polyline
+    function _distToRoute(lat, lng) {
+      if (!_voiceNav.routeCoords || _voiceNav.routeCoords.length < 2) return 0;
+      let minDist = Infinity;
+      const R = 111000; // approx metres per degree
+      for (let i = 0; i < _voiceNav.routeCoords.length - 1; i++) {
+        const [a0, a1] = _voiceNav.routeCoords[i];
+        const [b0, b1] = _voiceNav.routeCoords[i + 1];
+        const px = (lat - a0) * R, py = (lng - a1) * R;
+        const ax = (b0 - a0) * R, ay = (b1 - a1) * R;
+        const lenSq = ax * ax + ay * ay;
+        let t = lenSq > 0 ? Math.max(0, Math.min(1, (px * ax + py * ay) / lenSq)) : 0;
+        const dx = px - t * ax, dy = py - t * ay;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < minDist) minDist = d;
+      }
+      return minDist;
+    }
+
+    async function _voiceReroute(curLat, curLng) {
+      if (_voiceNav.rerouteInProgress || !_voiceNav.active) return;
+      _voiceNav.rerouteInProgress = true;
+      _speak('Recalculating route…');
+      try {
+        const newSteps = await _voiceFetchRoute(curLat, curLng, _voiceNav.destLat, _voiceNav.destLng);
+        _voiceNav.steps = newSteps;
+        _voiceNav.stepIndex = 0;
+        _voiceNav.announced = new Set();
+        if (newSteps.length) {
+          _speak(_osmrManeuverToText(newSteps[0]));
+        }
+        admToast('🔄 Route updated');
+      } catch(e) {
+        admToast('⚠️ Could not recalculate route');
+      } finally {
+        _voiceNav.rerouteInProgress = false;
+        _voiceNav.lastReroutePos = [curLat, curLng];
+      }
     }
 
     function _voiceCheckStep(curLat, curLng) {
       if (!_voiceNav.active || !_voiceNav.steps.length) return;
       const steps = _voiceNav.steps;
+
+      // ── Off-route detection: if >80m from route polyline, reroute (debounced 4s) ──
+      const offDist = _distToRoute(curLat, curLng);
+      if (offDist > 80 && !_voiceNav.rerouteInProgress) {
+        // Check we haven't just rerouted from basically the same spot
+        const lastR = _voiceNav.lastReroutePos;
+        const movedEnough = !lastR || admHav(curLat, curLng, lastR[0], lastR[1]) * 1000 > 50;
+        if (movedEnough) {
+          if (_voiceNav.rerouteTimer) clearTimeout(_voiceNav.rerouteTimer);
+          _voiceNav.rerouteTimer = setTimeout(() => _voiceReroute(curLat, curLng), 4000);
+        }
+      } else if (offDist <= 40 && _voiceNav.rerouteTimer) {
+        // Back on route — cancel pending reroute
+        clearTimeout(_voiceNav.rerouteTimer);
+        _voiceNav.rerouteTimer = null;
+      }
+
       // Find the closest upcoming step we haven't passed yet
       for (let i = _voiceNav.stepIndex; i < steps.length; i++) {
         const step = steps[i];
@@ -3224,6 +3311,10 @@
       _voiceNav.stepIndex = 0;
       _voiceNav.announced = new Set();
       _voiceNav.muted = false;
+      _voiceNav.routeCoords = [];
+      _voiceNav.rerouteInProgress = false;
+      _voiceNav.lastReroutePos = null;
+      if (_voiceNav.rerouteTimer) { clearTimeout(_voiceNav.rerouteTimer); _voiceNav.rerouteTimer = null; }
       admToast('🔊 Voice navigation starting…');
       _speak('Starting navigation to ' + (destName || 'your destination') + '.');
 
@@ -3253,7 +3344,10 @@
     function voiceNavStop() {
       if (_synth) _synth.cancel();
       if (_voiceNav.watchId !== null) { navigator.geolocation.clearWatch(_voiceNav.watchId); _voiceNav.watchId = null; }
+      if (_voiceNav.rerouteTimer) { clearTimeout(_voiceNav.rerouteTimer); _voiceNav.rerouteTimer = null; }
       _voiceNav.active = false;
+      _voiceNav.rerouteInProgress = false;
+      _voiceNav.routeCoords = [];
       _voiceNavUpdateBtn(false);
     }
 
@@ -3287,7 +3381,6 @@
     }
 
     // Inject voice nav UI into admin header area
-    document.addEventListener('DOMContentLoaded', () => {}, false); // ensure DOM ready
     (function _injectVoiceNavUI() {
       // Voice nav bar (shown when active) — injected into admin broadcast bar area
       const bar = document.createElement('div');
@@ -3504,9 +3597,17 @@
       custMapRefresh();
     }
     function admUpdateBcLink(la,lo) {
-      const mUrl=`https://www.google.com/maps?q=${la},${lo}`;
-      const msg=encodeURIComponent(`🛵 *Brainbox Store – Rider Location Update*\n\nYour delivery rider is currently at:\n📍 ${mUrl}\n\nTap to track on Google Maps.`);
-      document.getElementById('bc-share-btn').href=`https://wa.me/?text=${msg}`;
+      // Build the live-tracking URL — ?autotrack=1 causes the Track Live Delivery toggle to auto-click
+      const trackUrl = `https://brainbox-delivery.vercel.app/?autotrack=1`;
+      const mUrl = `https://www.google.com/maps?q=${la},${lo}`;
+      const msg = encodeURIComponent(
+        `🛵 *Brainbox Store – Live Delivery Tracking*\n\n` +
+        `Your rider is broadcasting their live location.\n\n` +
+        `📡 *Track live on map:*\n${trackUrl}\n\n` +
+        `📍 *Rider's current position:*\n${mUrl}\n\n` +
+        `Tap the tracking link to watch your delivery in real-time!`
+      );
+      document.getElementById('bc-share-btn').href = `https://wa.me/?text=${msg}`;
     }
     document.getElementById('broadcast-btn').addEventListener('click',()=>{ admBroadcasting?admStopBroadcast():admStartBroadcast(); });
 
@@ -3531,6 +3632,19 @@
           .then(d=>{(d.features||[]).forEach(f=>{const id=f.properties?.osm_id||f.geometry.coordinates.join(',');if(!seen.has(id)){seen.add(id);merged.push(f);}});})
         ));
         if (!merged.length) { sb.innerHTML='<div class="asug-empty">No results found.</div>'; return; }
+        // Sort by text similarity to the query — best match first
+        const admSimScore = (f, q) => {
+          const name = [(f.properties?.name||''), (f.properties?.suburb||''), (f.properties?.city||'')].join(' ').toLowerCase();
+          const qL = q.toLowerCase();
+          if (name === qL) return 1;
+          if (name.startsWith(qL) || qL.startsWith(name)) return 0.95;
+          if (name.includes(qL) || qL.includes(name)) return 0.85;
+          const qTokens = qL.split(/\s+/);
+          const nameSet = new Set(name.split(/\s+/));
+          const matches = qTokens.filter(t => [...nameSet].some(nt => nt.includes(t) || t.includes(nt)));
+          return matches.length / Math.max(qTokens.length, 1);
+        };
+        merged.sort((a, b) => admSimScore(b, n) - admSimScore(a, n));
         sb.innerHTML='';
         merged.slice(0,8).forEach(feature=>{
           const r=admPx(feature), km=admRdKm(r.lat,r.lng), fee=admFee(km);
@@ -3620,10 +3734,20 @@
 
     function admRefreshShare(wp) {
       const el=document.getElementById(`sh-${wp.id}`); if(!el) return;
-      const locPart=riderLat?`\n📍 Rider live location: https://www.google.com/maps?q=${riderLat},${riderLng}`:'';
-      const msg=encodeURIComponent(`🛵 *Brainbox Store – Your Delivery is On the Way!*\n\n📦 Delivering to: ${wp.name}\n📏 Distance: ${wp.km.toFixed(1)} km\n⏱️ Est. arrival: ${admArr(wp.eta)}${locPart}\n\nThank you for choosing Brainbox Store! 💙`);
-      // Open WhatsApp with the store's configured number so the message goes to the right customer channel
-      el.href=`https://wa.me/${CFG.wa}?text=${msg}`;
+      // Live tracking URL — ?autotrack=1 auto-clicks the Track Live Delivery toggle on load
+      const trackUrl = `https://brainbox-delivery.vercel.app/?autotrack=1`;
+      const locPart = riderLat
+        ? `\n\n📡 *Watch your rider live:*\n${trackUrl}\n📍 Current position: https://www.google.com/maps?q=${riderLat},${riderLng}`
+        : `\n\n📡 *Track your delivery:*\n${trackUrl}`;
+      const msg = encodeURIComponent(
+        `🛵 *Brainbox Store – Your Delivery is On the Way!*\n\n` +
+        `📦 Delivering to: ${wp.name}\n` +
+        `📏 Distance: ${wp.km.toFixed(1)} km\n` +
+        `⏱️ Est. arrival: ${admArr(wp.eta)}` +
+        locPart +
+        `\n\nThank you for choosing Brainbox Store! 💙`
+      );
+      el.href = `https://wa.me/${CFG.wa}?text=${msg}`;
     }
 
     const admRenderAll = () => { admRenderWP(); admRenderActive(); };
