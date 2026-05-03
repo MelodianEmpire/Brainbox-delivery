@@ -2253,40 +2253,73 @@
 
     // Helper: Extract date/time strings in YYYY-MM-DD and HH:MM format
     function getScheduleDateTimeStrings() {
-      const now = new Date();
-      let year = now.getFullYear();
-      let month = now.getMonth() + 1;
-      let day = now.getDate();
-
-      if (spScheduleType === 'tomorrow') {
-        const tom = new Date(now);
-        tom.setDate(tom.getDate() + 1);
-        year = tom.getFullYear();
-        month = tom.getMonth() + 1;
-        day = tom.getDate();
-      } else if (spScheduleType === 'specific') {
-        const dt = spScheduleDate;
-        if (dt) {
-          year = dt.getFullYear();
-          month = dt.getMonth() + 1;
-          day = dt.getDate();
-        }
+      try {
+        // Read directly from the HTML input elements (same as spGetScheduleText)
+        const dateInp = document.getElementById('sched-date-inp');
+        const timeInp = document.getElementById('sched-time-inp');
+        
+        const dateVal = dateInp ? dateInp.value : '';
+        const timeVal = timeInp ? timeInp.value : '';
+        
+        const dateStr = dateVal || new Date().toISOString().split('T')[0];
+        const timeStr = timeVal || '12:00';
+        
+        return [dateStr, timeStr];
+      } catch (e) {
+        console.error('Date extraction error:', e);
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return [`${year}-${month}-${day}`, '12:00'];
       }
-
-      const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-      const timeStr = `${String(spScheduleHour).padStart(2,'0')}:${String(spScheduleMinute).padStart(2,'0')}`;
-      return [dateStr, timeStr];
     }
 
     // Send order data to Google Sheet via Apps Script webhook
     function logToGoogleSheet(orderData) {
       const webhookUrl = 'https://script.google.com/macros/s/AKfycbwqpMz3wLwZjLxGBA5HOSSy_5sqZGQLcpBHbUCpVFvwxRgaU9-qRCkTAW6VoGgfyjNp/exec';
       
+      console.log('Logging order to sheet:', orderData);
+      
       fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData)
-      }).catch(err => console.log('Sheet log sent'));
+      })
+      .then(r => {
+        console.log('Sheet log response:', r.status);
+        return r.json();
+      })
+      .then(data => console.log('Sheet log success:', data))
+      .catch(err => console.error('Sheet log error:', err));
+
+      // Send instant WhatsApp notification to admin
+      sendInstantWhatsAppNotif(orderData);
+    }
+
+    function sendInstantWhatsAppNotif(orderData) {
+      const adminPhone = '2349110054598'; // Your WhatsApp number
+      const msg = encodeURIComponent(
+        `🔔 *NEW DELIVERY ORDER*
+
+` +
+        `👤 Customer: ${orderData.name}
+` +
+        `📍 Address: ${orderData.address}
+` +
+        `💰 Fee: ${orderData.fee}
+` +
+        `📅 Date: ${orderData.date}
+` +
+        `🕐 Time: ${orderData.time}
+
+` +
+        `Check Google Sheet for full details.`
+      );
+      
+      // This opens WhatsApp (doesn't actually send, just prepares message)
+      // Uncomment if you want to auto-open WhatsApp on confirmation
+      // window.open(`https://wa.me/${adminPhone}?text=${msg}`, '_blank');
     }
 
     /* ══════════════════════════════
