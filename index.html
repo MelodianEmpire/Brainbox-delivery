@@ -2214,6 +2214,19 @@
           `📅 Preferred date: ${dateLabel}\n` +
           `🕐 Preferred time: ${timeLabel}`
         );
+
+        // Log to Google Sheet + Calendar
+        const [dateStr, timeStr] = getScheduleDateTimeStrings();
+        logToGoogleSheet({
+          name: lastDest.shortName || 'Customer',
+          address: lastDest.shortName || '—',
+          phone: '—',
+          fee: naira(fee),
+          date: dateStr,
+          time: timeStr,
+          note: ''
+        });
+
       } else {
         // Pickup / meetup mode
         msg = encodeURIComponent(
@@ -2222,9 +2235,58 @@
           `📅 Preferred date: ${dateLabel}\n` +
           `🕐 Preferred time: ${timeLabel}`
         );
+
+        const [dateStr, timeStr] = getScheduleDateTimeStrings();
+        logToGoogleSheet({
+          name: 'Pickup/Meetup',
+          address: '—',
+          phone: '—',
+          fee: 'FREE',
+          date: dateStr,
+          time: timeStr,
+          note: 'Pickup/Meetup mode'
+        });
       }
       closeSchedPopup();
       window.open(`https://wa.me/${CONFIG.whatsappNumber}?text=${msg}`, '_blank', 'noopener');
+    }
+
+    // Helper: Extract date/time strings in YYYY-MM-DD and HH:MM format
+    function getScheduleDateTimeStrings() {
+      const now = new Date();
+      let year = now.getFullYear();
+      let month = now.getMonth() + 1;
+      let day = now.getDate();
+
+      if (spScheduleType === 'tomorrow') {
+        const tom = new Date(now);
+        tom.setDate(tom.getDate() + 1);
+        year = tom.getFullYear();
+        month = tom.getMonth() + 1;
+        day = tom.getDate();
+      } else if (spScheduleType === 'specific') {
+        const dt = spScheduleDate;
+        if (dt) {
+          year = dt.getFullYear();
+          month = dt.getMonth() + 1;
+          day = dt.getDate();
+        }
+      }
+
+      const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const timeStr = `${String(spScheduleHour).padStart(2,'0')}:${String(spScheduleMinute).padStart(2,'0')}`;
+      return [dateStr, timeStr];
+    }
+
+    // Send order data to Google Sheet via Apps Script webhook
+    function logToGoogleSheet(orderData) {
+      const webhookUrl = 'https://script.google.com/macros/s/AKfycbwqpMz3wLwZjLxGBA5HOSSy_5sqZGQLcpBHbUCpVFvwxRgaU9-qRCkTAW6VoGgfyjNp/exec';
+      
+      fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData)
+      }).catch(err => console.log('Sheet log sent'));
     }
 
     /* ══════════════════════════════
